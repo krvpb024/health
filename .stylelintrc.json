@@ -1,0 +1,20 @@
+{
+  "extends": [
+    "stylelint-config-standard"
+  ],
+  "plugins": [
+    "stylelint-no-unsupported-browser-features",
+    "stylelint-use-logical",
+    "stylelint-use-nesting"
+  ],
+  "rules": {
+    "declaration-property-unit-disallowed-list": {
+      "font-size": [
+        "em",
+        "px"
+      ]
+    },
+    "csstools/use-logical": "always",
+    "csstools/use-nesting": "always"
+  }
+}

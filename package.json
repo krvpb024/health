@@ -1,0 +1,31 @@
+{
+  "name": "health",
+  "version": "1.0.0",
+  "description": "",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "dev": "parcel ./templates/* --dist-dir ./templates-dist"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "browserslist": [
+    "defaults"
+  ],
+  "devDependencies": {
+    "eslint": "^8.0.1",
+    "eslint-config-semistandard": "^17.0.0",
+    "eslint-config-standard": "^17.0.0",
+    "eslint-plugin-compat": "^4.0.2",
+    "eslint-plugin-import": "^2.25.2",
+    "eslint-plugin-n": "^15.0.0",
+    "eslint-plugin-promise": "^6.0.0",
+    "parcel": "^2.6.2",
+    "stylelint": "^14.9.1",
+    "stylelint-config-standard": "^26.0.0",
+    "stylelint-no-unsupported-browser-features": "^5.0.3",
+    "stylelint-use-logical": "^2.0.0",
+    "stylelint-use-nesting": "^3.0.0"
+  }
+}
