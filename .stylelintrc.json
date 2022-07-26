@@ -14,6 +14,16 @@
         "px"
       ]
     },
+    "declaration-property-value-disallowed-list": [
+      {
+        "display": [
+          "/(inline|block|inline-block|flex|inline-flex|grid|inline-grid|flow-root)/"
+        ]
+      },
+      {
+        "message": "Should use two-value syntax for display."
+      }
+    ],
     "csstools/use-logical": "always",
     "csstools/use-nesting": "always"
   }
