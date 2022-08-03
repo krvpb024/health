@@ -1,0 +1,29 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model account {
+  id       Int      @id @default(autoincrement())
+  name     String   @unique
+  password String
+  profile  profile?
+}
+
+model profile {
+  id            Int             @id @default(autoincrement())
+  account       account         @relation(fields: [account_id], references: [id], onDelete: Cascade)
+  account_id    Int             @unique
+  birthday      DateTime        @db.Date
+  health_record health_record[]
+}
+
+model health_record {
+  id         Int     @id @default(autoincrement())
+  profile    profile @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+  profile_id Int     @unique
+  height     Int
+  weight     Int
+  body_fat   Int?
+  waistline  Int?
+}
