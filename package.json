@@ -3,9 +3,15 @@
   "version": "1.0.0",
   "description": "",
   "type": "module",
-  "main": "index.js",
+  "targets": {
+    "default": {
+      "distDir": "./templates-dist",
+      "publicUrl": "/static"
+    }
+  },
   "scripts": {
-    "template:dev": "parcel ./templates/* --dist-dir ./templates-dist",
+    "template:dev": "parcel ./templates/*.html",
+    "template:watch": "parcel watch ./templates/*.html --no-hmr",
     "db:gui": "prisma studio",
     "db:make_mg": "prisma migrate dev --create-only",
     "db:mg": "prisma migrate dev"
@@ -25,7 +31,7 @@
     "eslint-plugin-n": "^15.0.0",
     "eslint-plugin-promise": "^6.0.0",
     "parcel": "^2.6.2",
-    "prisma": "^4.1.1",
+    "prisma": "^4.2.1",
     "stylelint": "^14.9.1",
     "stylelint-config-standard": "^26.0.0",
     "stylelint-no-unsupported-browser-features": "^5.0.3",

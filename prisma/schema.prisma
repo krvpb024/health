@@ -4,26 +4,37 @@ datasource db {
 }
 
 model account {
-  id       Int      @id @default(autoincrement())
-  name     String   @unique
+  id       Int    @id @default(autoincrement())
+  name     String @unique
   password String
-  profile  profile?
+  // profile  profile?
 }
 
-model profile {
-  id            Int             @id @default(autoincrement())
-  account       account         @relation(fields: [account_id], references: [id], onDelete: Cascade)
-  account_id    Int             @unique
-  birthday      DateTime        @db.Date
-  health_record health_record[]
+model session {
+  id        String   @id
+  expire_at DateTime @db.Timestamptz
 }
 
-model health_record {
-  id         Int     @id @default(autoincrement())
-  profile    profile @relation(fields: [profile_id], references: [id], onDelete: Cascade)
-  profile_id Int     @unique
-  height     Int
-  weight     Int
-  body_fat   Int?
-  waistline  Int?
-}
+// model profile {
+//   id            Int             @id @default(autoincrement())
+//   account       account         @relation(fields: [account_id], references: [id], onDelete: Cascade)
+//   account_id    Int             @unique
+//   birthday      DateTime        @db.Date
+//   health_record health_record[]
+// }
+
+// model health_record {
+//   id         Int     @id @default(autoincrement())
+//   profile    profile @relation(fields: [profile_id], references: [id], onDelete: Cascade)
+//   profile_id Int     @unique
+//   height     Int
+//   weight     Int
+//   body_fat   Int?
+//   waistline  Int?
+// }
+
+// model test_table {
+//   id       Int    @id @default(autoincrement())
+//   name     String @unique
+//   password String
+// }

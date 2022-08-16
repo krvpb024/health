@@ -25,16 +25,44 @@ source-repository head
 
 library
   exposed-modules:
+      Conf
       Lib
+      Route.Auth
+      Route.Static
+      Schema
+      Template
+      Utils
   other-modules:
       Paths_health
   hs-source-dirs:
       src
   build-depends:
       aeson
+    , argon2
     , base >=4.7 && <5
+    , beam-core
+    , beam-postgres
+    , bytestring
+    , clientsession
+    , cookie
+    , directory
+    , dotenv
+    , ginger
+    , hashable
+    , http-api-data
+    , http-media
+    , mtl
+    , postgresql-simple
+    , resource-pool
+    , servant
     , servant-server
+    , text
+    , time
+    , unordered-containers
+    , utf8-string
     , wai
+    , wai-session
+    , wai-session-postgresql
     , warp
   default-language: Haskell2010
 
@@ -47,10 +75,32 @@ executable health-exe
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       aeson
+    , argon2
     , base
+    , beam-core
+    , beam-postgres
+    , bytestring
+    , clientsession
+    , cookie
+    , directory
+    , dotenv
+    , ginger
+    , hashable
     , health
+    , http-api-data
+    , http-media
+    , mtl
+    , postgresql-simple
+    , resource-pool
+    , servant
     , servant-server
+    , text
+    , time
+    , unordered-containers
+    , utf8-string
     , wai
+    , wai-session
+    , wai-session-postgresql
     , warp
   default-language: Haskell2010
 
@@ -64,12 +114,34 @@ test-suite health-test
   ghc-options: -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       aeson
+    , argon2
     , base
+    , beam-core
+    , beam-postgres
+    , bytestring
+    , clientsession
+    , cookie
+    , directory
+    , dotenv
+    , ginger
+    , hashable
     , health
     , hspec
     , hspec-wai
     , hspec-wai-json
+    , http-api-data
+    , http-media
+    , mtl
+    , postgresql-simple
+    , resource-pool
+    , servant
     , servant-server
+    , text
+    , time
+    , unordered-containers
+    , utf8-string
     , wai
+    , wai-session
+    , wai-session-postgresql
     , warp
   default-language: Haskell2010

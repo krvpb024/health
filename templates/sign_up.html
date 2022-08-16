@@ -1,0 +1,18 @@
+{% extends "layout.html" %}
+
+{%- block content %}
+<main>
+  <h1>註冊</h1>
+
+  {{ name }}
+  <form action="/auth/sign_up" method="post">
+    <label for="account">帳號</label>
+    <input type="text" name="account" id="account">
+
+    <label for="password">密碼</label>
+    <input type="text" name="password" id="password">
+
+    <button type="submit">送出</button>
+  </form>
+</main>
+{% endblock %}

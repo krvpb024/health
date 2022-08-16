@@ -9,7 +9,7 @@ specifiers:
   eslint-plugin-n: ^15.0.0
   eslint-plugin-promise: ^6.0.0
   parcel: ^2.6.2
-  prisma: ^4.1.1
+  prisma: ^4.2.1
   stylelint: ^14.9.1
   stylelint-config-standard: ^26.0.0
   stylelint-no-unsupported-browser-features: ^5.0.3
@@ -25,7 +25,7 @@ devDependencies:
   eslint-plugin-n: 15.2.4_eslint@8.20.0
   eslint-plugin-promise: 6.0.0_eslint@8.20.0
   parcel: 2.6.2
-  prisma: 4.1.1
+  prisma: 4.2.1
   stylelint: 14.9.1
   stylelint-config-standard: 26.0.0_stylelint@14.9.1
   stylelint-no-unsupported-browser-features: 5.0.3_stylelint@14.9.1
@@ -1034,8 +1034,8 @@ packages:
       nullthrows: 1.1.1
     dev: true
 
-  /@prisma/engines/4.1.1:
-    resolution: {integrity: sha512-DCw8L/SS0IXqmj5IW/fMxOXiifnsfjBzDfRhf0j3NFWqvMCh9OtfjmXQZxVgI2mwvJLc/5jzXhkiWT39qS09dA==}
+  /@prisma/engines/4.2.1:
+    resolution: {integrity: sha512-0KqBwREUOjBiHwITsQzw2DWfLHjntvbqzGRawj4sBMnIiL5CXwyDUKeHOwXzKMtNr1rEjxEsypM14g0CzLRK3g==}
     requiresBuild: true
     dev: true
 
@@ -2998,13 +2998,13 @@ packages:
     engines: {node: '>= 0.8.0'}
     dev: true
 
-  /prisma/4.1.1:
-    resolution: {integrity: sha512-yw50J8If2dKP4wYIi695zthsCASQFHiogGvUHHWd3falx/rpsD6Sb1LMLRV9nO3iGG3lozxNJ2PSINxK7xwdpg==}
+  /prisma/4.2.1:
+    resolution: {integrity: sha512-HuYqnTDgH8atjPGtYmY0Ql9XrrJnfW7daG1PtAJRW0E6gJxc50lY3vrIDn0yjMR3TvRlypjTcspQX8DT+xD4Sg==}
     engines: {node: '>=14.17'}
     hasBin: true
     requiresBuild: true
     dependencies:
-      '@prisma/engines': 4.1.1
+      '@prisma/engines': 4.2.1
     dev: true
 
   /punycode/2.1.1:
