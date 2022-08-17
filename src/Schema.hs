@@ -7,6 +7,7 @@ module Schema where
 import Database.Beam
 import Data.Text (Text)
 import Data.Int (Int32)
+import Data.ByteString.UTF8 as BSU
 import Database.Beam.Backend
 import Data.Time
 

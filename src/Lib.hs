@@ -1,4 +1,5 @@
 {-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE DataKinds #-}
 
 module Lib (startApp) where
 
@@ -14,15 +15,27 @@ import Route.Static
 import Route.Auth
 import Control.Monad.Reader
 import Conf
+import Template
+
+type BaseAPI = Get '[HTML] RawHtml
+
+baseAPI :: Proxy BaseAPI
+baseAPI = Proxy
+
+baseServer :: Server BaseAPI
+baseServer = baseHandler
+  where baseHandler = Template.htmlHandler mempty "/index.html"
 
 type API = AuthAPI
       :<|> StaticAPI
+      :<|> BaseAPI
 
 server :: Reader Env (Server API)
 server = do
   authServer <- authServerReader
   return $ authServer
       :<|> staticServer
+      :<|> baseServer
 
 api :: Proxy API
 api = Proxy

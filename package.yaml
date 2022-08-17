@@ -43,10 +43,12 @@ dependencies:
   - http-media
   - directory
   - http-api-data
-  - argon2
   - time
   - mtl
   - utf8-string
+  - microlens
+  - text-short
+  - password
 
 library:
   source-dirs: src

@@ -68,12 +68,12 @@ packages:
   original:
     hackage: ginger-0.10.4.0
 - completed:
-    hackage: argon2-1.3.0.1@sha256:b7963a66230edbd2f9a380f60596da130cb747f7e3b38a82af014b941ba46cfa,4733
+    hackage: password-3.0.1.0@sha256:69eef1d35a3d21e2346b4b1b6ac11b453a2c3e876d20c9596b747dccab303f94,4124
     pantry-tree:
-      size: 1675
-      sha256: 2ffbc9bd7906a89a8255fa16c1bfa209896fb3750350eeea0286c9951d54fe0b
+      size: 1224
+      sha256: e722cf13cdaac866e632a3334d112406d63c82b36652fd55e23da45b85be7c7e
   original:
-    hackage: argon2-1.3.0.1
+    hackage: password-3.0.1.0
 snapshots:
 - completed:
     size: 619163

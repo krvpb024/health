@@ -12,4 +12,3 @@ staticAPI = Proxy
 
 staticServer :: Server StaticAPI
 staticServer = serveDirectoryWebApp "templates-dist"
-
