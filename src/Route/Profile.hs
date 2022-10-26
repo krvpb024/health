@@ -35,9 +35,7 @@ profileServerT = profileGetHandler
         profileGetHandler Nothing        = Utils.TemplateHandler.htmlHandler mempty "/sign_up.html"
         profileGetHandler (Just account) = do
           pool <- asks getPool
-          liftIO $ print account
-          let context :: HashMap VarName BL.ByteString
-              context = fromList [ ("accountId", BLU.fromString $ show $ accountId account)
+          let context = fromList [ ("accountId", BLU.fromString $ show $ accountId account)
                                  , ("accountName", encodeUtf8 $ accountName account)
                                  ]
           Utils.TemplateHandler.htmlHandler context "/profile.html"

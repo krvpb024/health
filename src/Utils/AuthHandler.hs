@@ -23,6 +23,7 @@ import Data.Text.Lazy as TL
 import Data.Int
 import Data.Text.Lazy.Encoding as TLE
 import Data.Text.Encoding as TSE
+import Data.Time
 
 type instance AuthServerData (AuthProtect "cookie-auth") = Maybe SignInAccount
 
@@ -31,33 +32,36 @@ data SignInAccount = SignInAccount { sessionId :: Text
                                    , accountName :: Text
                                    } deriving (Show)
 
-lookupAccount :: Pool Connection -> Maybe Text -> Handler (Maybe SignInAccount)
+lookupAccount :: Pool Connection
+              -> Maybe Text
+              -> Handler (Maybe SignInAccount)
 lookupAccount pool sid = do
   sessionJoinedAccount <- liftIO $ lookupAccount' pool sid
   return $ sessionJoinedAccount >>=
-            \(s, a) -> Just $ SignInAccount (_sessionId s)
-                                            (_accountId a)
-                                            (_accountName a)
-
-lookupAccount' :: Pool Connection
-               -> Maybe Text
-               -> IO (Maybe (SessionT Identity, AccountT Identity))
-lookupAccount' _    Nothing          = return Nothing
-lookupAccount' pool (Just sessionId) = do
-  withResource pool $ \conn -> runBeamPostgres conn $
-    runSelectReturningOne $ select $ do
-      account <- all_ $ _healthAccount healthDb
-      joinedSessionAccount <- join_ (_healthSession healthDb) $ (primaryKey account ==.) . _sessionAccountId
-      guard_ $ _sessionId joinedSessionAccount ==. val_ sessionId
-      pure (joinedSessionAccount, account)
+            \(s, a) -> Just $ SignInAccount (_sessionId s) (_accountId a) (_accountName a)
+  where lookupAccount' :: Pool Connection
+                       -> Maybe Text
+                       -> IO (Maybe (SessionT Identity, AccountT Identity))
+        lookupAccount' _    Nothing          = return Nothing
+        lookupAccount' pool (Just sessionId) = do
+          currentTimestamp <- getZonedTime
+          withResource pool $ \conn -> runBeamPostgres conn $
+            runSelectReturningOne $ select $ do
+              account <- all_ $ _healthAccount healthDb
+              joinedSessionAccount <- join_ (_healthSession healthDb) $ (primaryKey account ==.) . _sessionAccountId
+              guard_ $ _sessionId joinedSessionAccount ==. val_ sessionId &&.
+                       _sessionExpireAt joinedSessionAccount >. val_ (zonedTimeToLocalTime currentTimestamp)
+              pure (joinedSessionAccount, account)
 
 authHandler :: Env -> AuthHandler Request (Maybe SignInAccount)
 authHandler env = mkAuthHandler handler
-  where handler req = lookupAccount pl sid
+  where handler req = lookupAccount pool sid
           where headers = requestHeaders req
+                sid = TL.fromStrict . TSE.decodeUtf8 <$>
+                      lookup "servant-auth-cookie" (parseCookies $
+                      fromMaybe "" cookie)
                 cookie = lookup ("cookie" :: HeaderName) headers
-                sid = fmap (TL.fromStrict . TSE.decodeUtf8) $ lookup "servant-auth-cookie" $ parseCookies $ fromMaybe "" cookie
-                pl = getPool env
+                pool = getPool env
 
 genAuthServerContext :: Env -> Context (AuthHandler Request (Maybe SignInAccount) ': '[])
 genAuthServerContext env = authHandler env :. EmptyContext
