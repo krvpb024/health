@@ -1,7 +1,7 @@
 module Conf where
-import Data.Pool
-import Database.Beam.Postgres
-import Data.ByteString.Internal
+import           Data.ByteString.Internal
+import           Data.Pool
+import           Database.Beam.Postgres
 
 dbPool :: String -> IO (Pool Connection)
 dbPool postgresUrl =
@@ -11,5 +11,5 @@ dbPool postgresUrl =
                      , poolMaxResources = 10
                      }
 
-newtype Env = Env { pool :: Pool Connection
+newtype Env = Env { getPool :: Pool Connection
                   }

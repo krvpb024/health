@@ -1,5 +1,6 @@
 {-# LANGUAGE TypeOperators #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE OverloadedStrings #-}
 
 module Lib (startApp) where
 
@@ -7,15 +8,16 @@ import Database.PostgreSQL.Simple
 import Network.Wai
 import Network.Wai.Handler.Warp
 import Servant
--- import Web.ClientSession
--- import Web.Cookie
 import Configuration.Dotenv
 import System.Environment
 import Route.Static
 import Route.Auth
 import Control.Monad.Reader
 import Conf
-import Template
+import Utils.TemplateHandler
+import Data.HashMap.Strict as HS
+import Utils.AuthHandler
+import Route.Profile
 
 type BaseAPI = Get '[HTML] RawHtml
 
@@ -24,33 +26,31 @@ baseAPI = Proxy
 
 baseServer :: Server BaseAPI
 baseServer = baseHandler
-  where baseHandler = Template.htmlHandler mempty "/index.html"
+  where baseHandler = Utils.TemplateHandler.htmlHandler mempty "/index.html"
 
 type API = AuthAPI
+      :<|> ProfileAPI
       :<|> StaticAPI
       :<|> BaseAPI
 
 server :: Reader Env (Server API)
 server = do
   authServer <- authServerReader
+  profileServer <- profileServerReader
   return $ authServer
+      :<|> profileServer
       :<|> staticServer
       :<|> baseServer
 
 api :: Proxy API
 api = Proxy
 
-app :: Reader Env Application
-app = serve api <$> server
+app :: Env -> Application
+app env = serveWithContext api (genAuthServerContext env) $ runReader server env
 
 startApp :: IO ()
 startApp = do
   loadFile defaultConfig
   postgresUrl <- getEnv "DATABASE_URL"
   pool <- dbPool postgresUrl
-  -- session <- Vault.newKey
-  -- key <- getDefaultKey
-  -- cDt <- encryptIO key "test"
-  -- print cDt
-  -- print $ decrypt key cDt
-  run 8080 $ runReader app $ Env pool
+  run 8080 $ app $ Env pool

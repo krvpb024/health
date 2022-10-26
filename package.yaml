@@ -28,9 +28,8 @@ dependencies:
   - resource-pool
   - postgresql-simple
   - dotenv
-  - wai-session
-  - wai-session-postgresql
   - clientsession
+  - wai-session
   - cookie
   - bytestring
   - beam-core
@@ -49,6 +48,9 @@ dependencies:
   - microlens
   - text-short
   - password
+  - http-types
+  - extra
+  - either
 
 library:
   source-dirs: src

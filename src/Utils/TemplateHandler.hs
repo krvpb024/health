@@ -1,7 +1,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-module Template where
+module Utils.TemplateHandler where
 
 import Data.HashMap.Strict as HS
 import Data.Hashable
@@ -17,6 +17,7 @@ import System.Directory
 import Servant
 import Network.HTTP.Media ((//), (/:))
 import Control.Monad.IO.Class
+import Control.Exception
 
 scopeLookup :: (Hashable k, Eq k, ToGVal m b) => k
                                               -> HS.HashMap k b
@@ -29,11 +30,10 @@ loadFileMay fileName = do
   fileContent <- tryIOError (loadFile $ dir <> "/templates-dist" <> fileName)
   case fileContent of
     Right contents -> pure $ Just contents
-    Left  _        -> pure Nothing
+    Left  ioErr    -> throw ioErr
 
-  where
-    loadFile :: FilePath -> IO String
-    loadFile filePath = openFile filePath ReadMode >>= System.IO.hGetContents
+  where loadFile :: FilePath -> IO String
+        loadFile filePath = openFile filePath ReadMode >>= System.IO.hGetContents
 
 render :: Template SourcePos
        -> HS.HashMap VarName BL.ByteString
@@ -61,5 +61,5 @@ htmlHandler :: MonadIO m => HS.HashMap VarName BL.ByteString
 htmlHandler context template = do
   htmlTemplate <- liftIO $ parseGingerFile loadFileMay template
   case htmlTemplate of
-    Left  pe  -> liftIO $ print pe >> exitFailure
-    Right tem -> return $ RawHtml $ render tem context
+    Left  parseErr -> throw parseErr
+    Right tem      -> return $ RawHtml $ render tem context

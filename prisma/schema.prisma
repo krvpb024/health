@@ -4,22 +4,26 @@ datasource db {
 }
 
 model account {
-  id       Int    @id @default(autoincrement())
-  name     String @unique
+  id       Int       @id @default(autoincrement())
+  name     String    @unique
   password String
   // profile  profile?
+  session  session[]
 }
 
 model session {
-  id        String   @id
-  expire_at DateTime @db.Timestamptz
+  id         String   @id
+  account    account  @relation(fields: [account_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  account_id Int
+  expire_at  DateTime @default(dbgenerated("now() + INTERVAL '31 days'")) @db.Timestamptz
 }
 
 // model profile {
-//   id            Int             @id @default(autoincrement())
-//   account       account         @relation(fields: [account_id], references: [id], onDelete: Cascade)
-//   account_id    Int             @unique
-//   birthday      DateTime        @db.Date
+//   id          Int      @id @default(autoincrement())
+//   account     account  @relation(fields: [account_id], references: [id], onDelete: Cascade)
+//   account_id  Int      @unique
+//   birthday    DateTime @db.Date
+//   init_height Int
 //   health_record health_record[]
 // }
 
