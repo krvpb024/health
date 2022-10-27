@@ -13,9 +13,6 @@ import Utils.AuthHandler
 import Servant.Server.Experimental.Auth
 import Network.Wai
 import Data.HashMap.Strict
-import Data.Text
-import Text.Ginger
-import Data.ByteString.Lazy as BL
 import Data.ByteString.Lazy.UTF8 as BLU
 import Data.Text.Lazy.Encoding as TLE
 

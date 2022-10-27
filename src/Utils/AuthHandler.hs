@@ -38,20 +38,29 @@ lookupAccount pool sid = do
             \(s, a) -> Just $ SignInAccount (_sessionId s)
                                             (_accountId a)
                                             (_accountName a)
+
   where lookupAccount' :: Pool Connection
                        -> Maybe Text
                        -> IO (Maybe (SessionT Identity, AccountT Identity))
         lookupAccount' _    Nothing          = return Nothing
         lookupAccount' pool (Just sessionId) = do
           currentTimestamp <- getZonedTime
-          withResource pool $ \conn -> runBeamPostgres conn $
-            runSelectReturningOne $ select $ do
-              account <- all_ $ _healthAccount healthDb
-              joinedSessionAccount <- join_ (_healthSession healthDb) $
-                                      (primaryKey account ==.) . _sessionAccountId
-              guard_ $ _sessionId joinedSessionAccount ==. val_ sessionId &&.
-                       _sessionExpireAt joinedSessionAccount >. val_ (zonedTimeToLocalTime currentTimestamp)
-              pure (joinedSessionAccount, account)
+          selectSession pool sessionId currentTimestamp
+
+          where selectSession :: Pool Connection
+                              -> Text
+                              -> ZonedTime
+                              -> IO (Maybe (SessionT Identity, AccountT Identity))
+                selectSession pool sessionId currentTimestamp =
+                  withResource pool $ \conn -> runBeamPostgres conn $
+                  runSelectReturningOne $ select $ do
+                    account <- all_ $ _healthAccount healthDb
+                    session <- join_ (_healthSession healthDb) $ (primaryKey account ==.) . _sessionAccountId
+                    guard_ $ (_sessionId session ==. val_ sessionId) &&.
+                            (_sessionExpireAt session >. val_ (zonedTimeToLocalTime currentTimestamp))
+                    pure (session, account)
+
+
 
 authHandler :: Env -> AuthHandler Request (Maybe SignInAccount)
 authHandler env = mkAuthHandler handler

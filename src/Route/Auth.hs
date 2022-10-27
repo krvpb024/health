@@ -32,6 +32,7 @@ import Data.Text.Lazy.Encoding as TLE
 import Data.Text.Encoding as TSE
 import Data.Text.Lazy as TL
 import Data.ByteString.Lazy as BL
+import Data.Time
 
 data AccountData = AccountData { name :: TL.Text
                                , password :: TL.Text
@@ -85,6 +86,7 @@ authServerT = (authSignUpGetHandler
                                                 , Header "Set-Cookie" SetCookie] NoContent)
         authSignInPostHandler accountData = do
           pool <- asks getPool
+          currentTimestamp <- liftIO getZonedTime
           account <- liftIO $ selectAccount pool accountData
           let authorizedAccount :: Either ServerError (AccountT Identity)
               authorizedAccount = isPasswordValid hashedInputPassword account
@@ -93,14 +95,16 @@ authServerT = (authSignUpGetHandler
           newSid <- liftIO $ genNewSid pool authorizedAccount
           case newSid of
             Left  err -> throw err
-            Right sid -> return $ addHeader "/" $
-                          addHeader defaultSetCookie { setCookieName     = "servant-auth-cookie"
-                                                     , setCookieValue    = BL.toStrict $ TLE.encodeUtf8 sid
-                                                     , setCookieHttpOnly = True
-                                                     , setCookieSameSite = Just sameSiteStrict
-                                                     , setCookiePath     = Just "/"
-                                                     }
-                          NoContent
+            Right sid -> do
+              liftIO $ deleteExpiredSession pool account currentTimestamp
+              return $ addHeader "/" $
+                       addHeader defaultSetCookie { setCookieName     = "servant-auth-cookie"
+                                                  , setCookieValue    = BL.toStrict $ TLE.encodeUtf8 sid
+                                                  , setCookieHttpOnly = True
+                                                  , setCookieSameSite = Just sameSiteStrict
+                                                  , setCookiePath     = Just "/"
+                                                  }
+                       NoContent
 
             where selectAccount :: Pool Connection
                                 -> AccountData
@@ -115,11 +119,12 @@ authServerT = (authSignUpGetHandler
                   isPasswordValid :: Password
                                   -> Either ServerError (AccountT Identity)
                                   -> Either ServerError (AccountT Identity)
+                  isPasswordValid _             (Left  err) = Left err
                   isPasswordValid inputPassword (Right acc) =
                     case (checkPassword inputPassword . PasswordHash) $ TL.toStrict (_accountPassword acc :: TL.Text) of
                       PasswordCheckFail    -> Left err401 { errBody = "Password Incorrect." }
                       PasswordCheckSuccess -> return acc
-                  isPasswordValid inputPassword err = err
+
 
                   genNewSid :: Pool Connection
                             -> Either ServerError (AccountT Identity)
@@ -131,3 +136,15 @@ authServerT = (authSignUpGetHandler
                       runInsertReturningList $ Database.Beam.insert (_healthSession healthDb) $
                       insertExpressions [Session (val_ $ TL.fromStrict $ TSE.decodeUtf8 sid) (val_ $ primaryKey account) default_]
                     return $ return $ _sessionId newSession
+
+                  deleteExpiredSession :: Pool Connection
+                                       -> Either ServerError (AccountT Identity)
+                                       -> ZonedTime
+                                       -> IO ()
+                  deleteExpiredSession _    (Left err)      _                = throw err
+                  deleteExpiredSession pool (Right account) currentTimestamp = do
+                    withResource pool $ \conn -> runBeamPostgres conn $
+                      runDelete $ delete (_healthSession healthDb) $
+                      \session -> (_sessionAccountId session ==. val_ (primaryKey account)) &&.
+                                  (_sessionExpireAt session <=. val_ (zonedTimeToLocalTime currentTimestamp))
+
