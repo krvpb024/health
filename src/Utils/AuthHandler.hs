@@ -9,10 +9,8 @@ import Servant
 import Servant.Server.Experimental.Auth
 import Network.Wai
 import Web.Cookie
-import Network.HTTP.Types.Header as H
+import Network.HTTP.Types.Header
 import Data.Maybe
-import Data.ByteString as BS
-import Data.ByteString.Lazy as BL
 import Conf
 import Database.Beam.Postgres
 import Data.Pool
@@ -21,7 +19,6 @@ import Database.Beam
 import Schema
 import Data.Text.Lazy as TL
 import Data.Int
-import Data.Text.Lazy.Encoding as TLE
 import Data.Text.Encoding as TSE
 import Data.Time
 
@@ -38,7 +35,9 @@ lookupAccount :: Pool Connection
 lookupAccount pool sid = do
   sessionJoinedAccount <- liftIO $ lookupAccount' pool sid
   return $ sessionJoinedAccount >>=
-            \(s, a) -> Just $ SignInAccount (_sessionId s) (_accountId a) (_accountName a)
+            \(s, a) -> Just $ SignInAccount (_sessionId s)
+                                            (_accountId a)
+                                            (_accountName a)
   where lookupAccount' :: Pool Connection
                        -> Maybe Text
                        -> IO (Maybe (SessionT Identity, AccountT Identity))
@@ -48,7 +47,8 @@ lookupAccount pool sid = do
           withResource pool $ \conn -> runBeamPostgres conn $
             runSelectReturningOne $ select $ do
               account <- all_ $ _healthAccount healthDb
-              joinedSessionAccount <- join_ (_healthSession healthDb) $ (primaryKey account ==.) . _sessionAccountId
+              joinedSessionAccount <- join_ (_healthSession healthDb) $
+                                      (primaryKey account ==.) . _sessionAccountId
               guard_ $ _sessionId joinedSessionAccount ==. val_ sessionId &&.
                        _sessionExpireAt joinedSessionAccount >. val_ (zonedTimeToLocalTime currentTimestamp)
               pure (joinedSessionAccount, account)

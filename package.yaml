@@ -45,8 +45,6 @@ dependencies:
   - time
   - mtl
   - utf8-string
-  - microlens
-  - text-short
   - password
   - http-types
   - extra
