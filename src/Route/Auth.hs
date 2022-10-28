@@ -97,12 +97,14 @@ authServerT = (authSignUpGetHandler
             Left  err -> throw err
             Right sid -> do
               liftIO $ deleteExpiredSession pool account currentTimestamp
+              timeZone <- liftIO getCurrentTimeZone
               return $ addHeader "/" $
                        addHeader defaultSetCookie { setCookieName     = "servant-auth-cookie"
-                                                  , setCookieValue    = BL.toStrict $ TLE.encodeUtf8 sid
+                                                  , setCookieValue    = BL.toStrict $ TLE.encodeUtf8 $ _sessionId sid
                                                   , setCookieHttpOnly = True
                                                   , setCookieSameSite = Just sameSiteStrict
                                                   , setCookiePath     = Just "/"
+                                                  , setCookieExpires  = Just $ zonedTimeToUTC $ ZonedTime (_sessionExpireAt sid) timeZone
                                                   }
                        NoContent
 
@@ -128,14 +130,14 @@ authServerT = (authSignUpGetHandler
 
                   genNewSid :: Pool Connection
                             -> Either ServerError (AccountT Identity)
-                            -> IO (Either ServerError TL.Text)
+                            -> IO (Either ServerError (SessionT Identity))
                   genNewSid _    (Left e)        = return $ Left e
                   genNewSid pool (Right account) = do
                     sid <- genSessionId
                     [newSession] <- withResource pool $ \conn -> runBeamPostgres conn $
                       runInsertReturningList $ Database.Beam.insert (_healthSession healthDb) $
                       insertExpressions [Session (val_ $ TL.fromStrict $ TSE.decodeUtf8 sid) (val_ $ primaryKey account) default_]
-                    return $ return $ _sessionId newSession
+                    return $ return newSession
 
                   deleteExpiredSession :: Pool Connection
                                        -> Either ServerError (AccountT Identity)

@@ -2,6 +2,10 @@
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE InstanceSigs #-}
 
 module Schema where
 
@@ -15,25 +19,38 @@ data AccountT f = Account { _accountId       :: Columnar f Int32
                           , _accountPassword :: Columnar f TL.Text
                           } deriving (Generic, Beamable)
 
+type Account = AccountT Identity
+type AccountId = PrimaryKey AccountT Identity
+
+deriving instance Show Account
+deriving instance Eq Account
+
 instance Table AccountT where
   data PrimaryKey AccountT f = AccountId (Columnar f Int32)
       deriving (Generic, Beamable)
 
+  primaryKey :: AccountT column -> PrimaryKey AccountT column
   primaryKey = AccountId . _accountId
-
 
 data SessionT f = Session { _sessionId        :: Columnar f TL.Text
                           , _sessionAccountId :: PrimaryKey AccountT f
                           , _sessionExpireAt  :: Columnar f LocalTime
                           } deriving (Generic, Beamable)
 
+type Session = SessionT Identity
+type SessionId = PrimaryKey SessionT Identity
+
+deriving instance Show AccountId
+deriving instance Show Session
+deriving instance Eq AccountId
+deriving instance Eq Session
+
 instance Table SessionT where
   data PrimaryKey SessionT f = SessionId (Columnar f TL.Text)
       deriving (Generic, Beamable)
 
+  primaryKey :: SessionT column -> PrimaryKey SessionT column
   primaryKey = SessionId . _sessionId
-
-
 
 data HealthDb f = HealthDb { _healthAccount :: f (TableEntity AccountT)
                            , _healthSession :: f (TableEntity SessionT)

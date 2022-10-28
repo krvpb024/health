@@ -57,7 +57,7 @@ lookupAccount pool sid = do
                     account <- all_ $ _healthAccount healthDb
                     session <- join_ (_healthSession healthDb) $ (primaryKey account ==.) . _sessionAccountId
                     guard_ $ (_sessionId session ==. val_ sessionId) &&.
-                            (_sessionExpireAt session >. val_ (zonedTimeToLocalTime currentTimestamp))
+                             (_sessionExpireAt session >. val_ (zonedTimeToLocalTime currentTimestamp))
                     pure (session, account)
 
 
@@ -67,8 +67,8 @@ authHandler env = mkAuthHandler handler
   where handler req = lookupAccount pool sid
           where headers = requestHeaders req
                 sid = TL.fromStrict . TSE.decodeUtf8 <$>
-                      lookup "servant-auth-cookie" (parseCookies $
-                      fromMaybe "" cookie)
+                      lookup "servant-auth-cookie"
+                             (parseCookies $ fromMaybe "" cookie)
                 cookie = lookup ("cookie" :: HeaderName) headers
                 pool = getPool env
 
