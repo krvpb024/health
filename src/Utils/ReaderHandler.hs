@@ -3,7 +3,7 @@
 
 module Utils.ReaderHandler where
 
-import Control.Monad.Reader
+import Control.Monad.Trans.Reader
 import Conf
 import Servant
 import GHC.Base

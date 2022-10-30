@@ -12,7 +12,7 @@ import Configuration.Dotenv
 import System.Environment
 import Route.Static
 import Route.Auth
-import Control.Monad.Reader
+import Control.Monad.Trans.Reader
 import Conf
 import Utils.TemplateHandler
 import Data.HashMap.Strict as HS

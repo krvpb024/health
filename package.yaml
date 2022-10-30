@@ -49,6 +49,7 @@ dependencies:
   - http-types
   - extra
   - either
+  - transformers
 
 library:
   source-dirs: src

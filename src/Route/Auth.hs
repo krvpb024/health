@@ -16,7 +16,7 @@ import GHC.Generics
 import Data.Aeson
 import Data.String (IsString)
 import Database.Beam.Postgres
-import Control.Monad.Reader
+import Control.Monad.Trans.Reader
 import Database.Beam
 import Schema
 import Utils.ReaderHandler
@@ -64,7 +64,6 @@ authAPI = Proxy
 
 authServerReader :: Reader Env (Server AuthAPI)
 authServerReader = asks $ \env ->
-  -- hoistServer authAPI (readerToHandler env) authServerT
   hoistServerWithContext authAPI
                          (Proxy :: Proxy '[AuthHandler Request (Maybe SignInAccount)])
                          (readerToHandler env)
@@ -176,11 +175,9 @@ authServerT = (authSignUpGetHandler
              Maybe SignInAccount -> ReaderHandler (Headers '[ Header "Location" RedirectUrl
                                                             , Header "Set-Cookie" SetCookie
                                                             ] NoContent)
-        authSignOutPostHandler Nothing        = do
-          liftIO $ print "no user"
-          return $ addHeader "/" $
-                   noHeader
-                   NoContent
+        authSignOutPostHandler Nothing        = return $ addHeader "/" $
+                                                         noHeader
+                                                        NoContent
         authSignOutPostHandler (Just account) = do
           pool <- asks getPool
           liftIO $ withResource pool $ \conn -> runBeamPostgres conn $

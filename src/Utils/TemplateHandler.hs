@@ -18,6 +18,7 @@ import Servant
 import Network.HTTP.Media ((//), (/:))
 import Control.Monad.IO.Class
 import Control.Exception
+import Data.Aeson
 
 scopeLookup :: (Hashable k, Eq k, ToGVal m b) => k
                                               -> HS.HashMap k b
@@ -36,7 +37,7 @@ loadFileMay fileName = do
         loadFile filePath = openFile filePath ReadMode >>= System.IO.hGetContents
 
 render :: Template SourcePos
-       -> HS.HashMap VarName BL.ByteString
+       -> HS.HashMap VarName Value
        -> BL.ByteString
 render template contextMap =
   TLE.encodeUtf8 $ TL.fromStrict $
@@ -55,7 +56,7 @@ instance Accept HTML where
 instance MimeRender HTML RawHtml where
   mimeRender _ = unRaw
 
-htmlHandler :: MonadIO m => HS.HashMap VarName BL.ByteString
+htmlHandler :: MonadIO m => HS.HashMap VarName Value
                          -> String
                          -> m RawHtml
 htmlHandler context template = do
