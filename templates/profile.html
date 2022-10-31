@@ -5,11 +5,14 @@
   <h1>個人頁面</h1>
 
   <dl>
-    <dt>帳號 ID</dt>
-    <dl>{{ ctx.profileAccountId }}</dl>
-
-    <dt>帳號名</dt>
+    <dt>帳號：</dt>
     <dl>{{ ctx.profileAccountName }}</dl>
+
+    <dt>性別：</dt>
+    <dl>{{ ctx.profileGender }}</dl>
+
+    <dt>生日：</dt>
+    <dl>{{ ctx.profileBirthDate }}</dl>
   </dl>
 </main>
 {% endblock %}

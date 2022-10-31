@@ -71,15 +71,16 @@ profileServerReader = asks $ \env ->
                          (readerToHandler env)
                          profileServerT
 
-data ProfileGetContext = ProfileGetContext { profileAccountId   :: Int32
-                                           , profileAccountName :: TL.Text
+data ProfileGetContext = ProfileGetContext { profileAccountName :: TL.Text
+                                           , profileGender      :: Text
+                                           , profileBirthDate   :: Day
                                            } deriving (Generic, Show)
 instance ToJSON ProfileGetContext
 instance FromJSON ProfileGetContext
 
 profileServerT :: ServerT ProfileAPI ReaderHandler
 profileServerT = profileGetHandler
-            :<|> profileGetFormHandler
+            :<|> profileFormGetHandler
             :<|> profilePostHandler
 
   where profileGetHandler :: Maybe SignInAccount
@@ -93,20 +94,21 @@ profileServerT = profileGetHandler
                 context = HS.fromList [ authFailHandlerMessage ]
         profileGetHandler (Just account) = do
           pool <- asks getPool
-          profile <- liftIO $ selectProfile pool account
-          case profile of
+          maybeProfile <- liftIO $ selectProfile pool account
+          case maybeProfile of
             Nothing -> do html <- TP.htmlHandler context "/profile_form.html"
                           respond $ WithStatus @404 $ html
               where
                     context = HS.fromList [ ( "globalMsgs"
                                             , toJSON ["Haven't created an account." :: Text] ) ]
-            Just _  -> do html <- TP.htmlHandler context "/profile.html"
-                          respond $ WithStatus @200 $ html
+            Just profile -> do html <- TP.htmlHandler context "/profile.html"
+                               respond $ WithStatus @200 $ html
               where
                     context = HS.fromList [ ( "ctx"
                                             , toJSON $ ProfileGetContext
-                                                        (accountId account)
-                                                        (accountName account) ) ]
+                                                         (accountName account)
+                                                         (bool "女" "男" $ _profileGender profile)
+                                                         (_profileBirthDate profile) ) ]
           where
                 selectProfile pool account =
                   withResource pool $ \conn -> runBeamPostgres conn $
@@ -115,14 +117,14 @@ profileServerT = profileGetHandler
                                        (AccountId . val_ . accountId) account) $
                   all_ $ _healthProfile healthDb
 
-        profileGetFormHandler :: Maybe SignInAccount
+        profileFormGetHandler :: Maybe SignInAccount
                               -> ReaderHandler ( Union '[ WithStatus 401 RawHtml
                                                         , WithStatus 200 RawHtml ] )
-        profileGetFormHandler Nothing        = do html <- TP.htmlHandler context "/sign_in.html"
+        profileFormGetHandler Nothing        = do html <- TP.htmlHandler context "/sign_in.html"
                                                   respond $ WithStatus @401 $ html
           where
                 context = HS.fromList [ authFailHandlerMessage ]
-        profileGetFormHandler (Just account) = do
+        profileFormGetHandler (Just account) = do
           html <- TP.htmlHandler mempty "/profile_form.html"
           respond $ WithStatus @200 $ html
 
@@ -149,7 +151,7 @@ profileServerT = profileGetHandler
                       runInsertReturningList $ Database.Beam.insert (_healthProfile healthDb) $
                       insertExpressions [ Profile { _profileId         = default_
                                                   , _profileAccountId  = AccountId $ val_ $ accountId account
-                                                  , _profileGender     = val_ $ bool True False $
+                                                  , _profileGender     = val_ $ bool False True $
                                                                                 gender profileFormData == "male"
                                                   , _profileBirthDate  = val_ $ birthDate profileFormData
                                                   , _profileInitHeight = val_ $ initHeight profileFormData
