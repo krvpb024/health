@@ -5,11 +5,11 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE MonoLocalBinds #-}
+{-# LANGUAGE TypeApplications #-}
 
 module Route.Auth where
 
 import Servant
-import Utils.TemplateHandler
 import Control.Monad.IO.Class
 import Web.FormUrlEncoded
 import GHC.Generics
@@ -36,8 +36,11 @@ import Data.Time
 import Servant.Server.Experimental.Auth
 import Network.Wai
 import Utils.AuthHandler
+import Utils.TemplateHandler as TP
+import Data.HashMap.Strict as HS
+import Text.Ginger
 
-data AccountData = AccountData { name :: TL.Text
+data AccountData = AccountData { name     :: TL.Text
                                , password :: TL.Text
                                } deriving (Eq, Show, Generic, ToJSON, FromJSON)
 instance FromForm AccountData
@@ -47,16 +50,15 @@ type AuthAPI = "auth" :> ("sign_up" :> ( Get '[HTML] RawHtml
                                        )
                      :<|> "sign_in" :> ( Get '[HTML] RawHtml
                                     :<|> ReqBody '[FormUrlEncoded] AccountData
-                                         :> Verb 'POST 303 '[JSON] ( Headers '[ Header "Location" RedirectUrl
-                                                                              , Header "Set-Cookie" SetCookie
-                                                                              ] NoContent
-                                                                   )
+                                           :> UVerb 'POST '[HTML] [ WithStatus 401 RawHtml
+                                                                  , WithStatus 303 ( Headers '[ Header "Location" RedirectUrl
+                                                                                              , Header "Set-Cookie" SetCookie
+                                                                                              ] NoContent ) ]
                                        )
                      :<|> "sign_out" :> AuthProtect "cookie-auth"
-                                        :> Verb 'POST 303 '[JSON] ( Headers '[ Header "Location" RedirectUrl
-                                                                             , Header "Set-Cookie" SetCookie
-                                                                             ] NoContent
-                                                                  )
+                                          :> Verb 'POST 303 '[HTML] ( Headers '[ Header "Location" RedirectUrl
+                                                                               , Header "Set-Cookie" SetCookie
+                                                                               ] NoContent )
                          )
 
 authAPI :: Proxy AuthAPI
@@ -77,7 +79,7 @@ authServerT = (authSignUpGetHandler
          :<|>  authSignOutPostHandler
 
   where authSignUpGetHandler :: ReaderHandler RawHtml
-        authSignUpGetHandler = Utils.TemplateHandler.htmlHandler mempty "/sign_up.html"
+        authSignUpGetHandler = TP.htmlHandler mempty "/sign_up.html"
 
         authSignUpPostHandler :: (ToHttpApiData RedirectUrl, IsString RedirectUrl) =>
           AccountData -> ReaderHandler (Headers '[Header "Location" RedirectUrl] NoContent)
@@ -96,12 +98,13 @@ authServerT = (authSignUpGetHandler
                                     ]
 
         authSignInGetHandler :: ReaderHandler RawHtml
-        authSignInGetHandler = Utils.TemplateHandler.htmlHandler mempty "/sign_in.html"
+        authSignInGetHandler = TP.htmlHandler mempty "/sign_in.html"
 
         authSignInPostHandler :: (ToHttpApiData RedirectUrl, IsString RedirectUrl) =>
-          AccountData -> ReaderHandler (Headers '[ Header "Location" RedirectUrl
-                                                 , Header "Set-Cookie" SetCookie
-                                                 ] NoContent)
+          AccountData -> ReaderHandler ( Union '[ WithStatus 401 RawHtml
+                                                , WithStatus 303 ( Headers '[ Header "Location" RedirectUrl
+                                                                            , Header "Set-Cookie" SetCookie
+                                                                            ] NoContent ) ] )
         authSignInPostHandler accountData = do
           pool <- asks getPool
           currentTimestamp <- liftIO getZonedTime
@@ -112,22 +115,27 @@ authServerT = (authSignUpGetHandler
               hashedInputPassword = mkPassword $ TL.toStrict $ password accountData
           newSid <- liftIO $ genNewSid pool authorizedAccount
           case newSid of
-            Left  err -> throw err
+            Left  err -> do html <- TP.htmlHandler context "/sign_in.html"
+                            respond $ WithStatus @401 $ html
+                              where context :: HashMap VarName Value
+                                    context = HS.fromList [ ("globalMsgs", toJSON [TLE.decodeUtf8 (errBody err)]) ]
             Right sid -> do
               liftIO $ deleteExpiredSession pool account currentTimestamp
               timeZone <- liftIO getCurrentTimeZone
-              return $ addHeader "/" $
-                       addHeader defaultSetCookie { setCookieName     = "servant-auth-cookie"
-                                                  , setCookieValue    = BL.toStrict $ TLE.encodeUtf8 $
-                                                                        _sessionId sid
-                                                  , setCookieHttpOnly = True
-                                                  , setCookieSecure   = True
-                                                  , setCookieSameSite = Just sameSiteStrict
-                                                  , setCookiePath     = Just "/"
-                                                  , setCookieExpires  = Just $ zonedTimeToUTC $
-                                                                        ZonedTime (_sessionExpireAt sid) timeZone
-                                                  }
-                       NoContent
+              let redirect ::Headers [Header "Location" RedirectUrl, Header "Set-Cookie" SetCookie] NoContent
+                  redirect = addHeader "/profile" $
+                             addHeader defaultSetCookie { setCookieName     = "servant-auth-cookie"
+                                                        , setCookieValue    = BL.toStrict $ TLE.encodeUtf8 $
+                                                                              _sessionId sid
+                                                        , setCookieHttpOnly = True
+                                                        , setCookieSecure   = True
+                                                        , setCookieSameSite = Just sameSiteStrict
+                                                        , setCookiePath     = Just "/"
+                                                        , setCookieExpires  = Just $ zonedTimeToUTC $
+                                                                              ZonedTime (_sessionExpireAt sid) timeZone
+                                                        }
+                              NoContent
+              respond $ WithStatus @303 $ redirect
 
             where selectAccount :: Pool Connection
                                 -> AccountData
@@ -167,7 +175,7 @@ authServerT = (authSignUpGetHandler
                   deleteExpiredSession _    (Left err)      _                = throw err
                   deleteExpiredSession pool (Right account) currentTimestamp = do
                     withResource pool $ \conn -> runBeamPostgres conn $
-                      runDelete $ delete (_healthSession healthDb) $
+                      runDelete $ Database.Beam.delete (_healthSession healthDb) $
                       \session -> (_sessionAccountId session ==. val_ (primaryKey account)) &&.
                                   (_sessionExpireAt session <=. val_ (zonedTimeToLocalTime currentTimestamp))
 
@@ -181,7 +189,7 @@ authServerT = (authSignUpGetHandler
         authSignOutPostHandler (Just account) = do
           pool <- asks getPool
           liftIO $ withResource pool $ \conn -> runBeamPostgres conn $
-            runDelete $ delete (_healthSession healthDb) $
+            runDelete $ Database.Beam.delete (_healthSession healthDb) $
             \session -> _sessionId session ==. val_ (sessionId account)
           return $ addHeader "/" $
                    addHeader defaultSetCookie { setCookieName     = "servant-auth-cookie"

@@ -21,6 +21,8 @@ import Data.Text.Lazy as TL
 import Data.Int
 import Data.Text.Encoding as TSE
 import Data.Time
+import Text.Ginger
+import Data.Aeson
 
 type instance AuthServerData (AuthProtect "cookie-auth") = Maybe SignInAccount
 
@@ -72,3 +74,6 @@ authHandler env = mkAuthHandler handler
 
 genAuthServerContext :: Env -> Context (AuthHandler Request (Maybe SignInAccount) ': '[])
 genAuthServerContext env = authHandler env :. EmptyContext
+
+authFailHandlerMessage :: (VarName, Value)
+authFailHandlerMessage = ( "globalMsgs", toJSON ["You Need to Sign In First." :: Text] )

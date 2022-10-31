@@ -1,0 +1,48 @@
+{% extends "layout.html" %}
+
+{%- block title %}建立個人檔案{% endblock %}
+
+{%- block content %}
+<main>
+  <h1>建立個人檔案</h1>
+  <p>在開始記錄你的健康之前，我們需要先取得你的一些資料。</p>
+
+  <section id="profile-description-section" aria-labelledby="profile-description-title">
+    <h2 id="profile-description-title">為什麼需要提供這些個人資料？</h2>
+
+    <p>
+      依照台灣衛服部<a href="https://www.hpa.gov.tw/Pages/Detail.aspx?nodeid=542&pid=9737">成人健康體位標準</a>，以下欄位為計算時所需資料。
+    </p>
+  </section>
+
+  <section id="profile-form-section" aria-labelledby="profile-form-title">
+    <h2 id="profile-form-title">填寫個人資料</h2>
+
+    <form action="/profile" method="post" aria-labelledby="profile-form-title">
+      <label for="birth_date">
+        生日
+        <span>（兒童、青少年、成人的標準不同）</span>
+      </label>
+      <input type="date" name="birthDate" id="birth_date">
+
+      <fieldset>
+        <legend>
+          性別
+          <span>（不同生理性別的標準不同）</span>
+        </legend>
+
+        <label for="gender_male">男</label>
+        <input type="radio" name="gender" id="gender_male" value="male">
+
+        <label for="gender_female">女</label>
+        <input type="radio" name="gender" id="gender_female" value="female">
+      </fieldset>
+
+      <label for="height">身高</label>
+      <input type="number" name="initHeight" id="height">
+
+      <button type="submit">送出</button>
+    </form>
+  </section>
+</main>
+{% endblock %}

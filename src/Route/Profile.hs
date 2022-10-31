@@ -1,7 +1,18 @@
+
+{-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
-{-# LANGUAGE TypeOperators #-}
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE DeriveAnyClass #-}
+{-# LANGUAGE DerivingVia #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE TypeOperators #-}
+{-# LANGUAGE UndecidableInstances #-}
 
 module Route.Profile where
 
@@ -14,14 +25,41 @@ import Utils.AuthHandler
 import Servant.Server.Experimental.Auth
 import Network.Wai
 import Data.HashMap.Strict as HS
-import Data.ByteString.Lazy.UTF8 as BLU
-import Data.Text.Lazy.Encoding as TLE
 import Data.Int
 import Data.Text.Lazy as TL
 import GHC.Generics
 import Data.Aeson
+import Data.Time
+import Data.String (IsString)
+import Control.Monad.IO.Class
+import Web.FormUrlEncoded
+import Data.Pool
+import Database.Beam.Postgres
+import Database.Beam
+import Database.Beam.Backend.SQL.BeamExtensions
+import Schema
+import Data.Bool
 
-type ProfileAPI = "profile" :> AuthProtect "cookie-auth" :> Get '[HTML] RawHtml
+data ProfileData = ProfileData { birthDate  :: Day
+                               , gender     :: Text
+                               , initHeight :: Int32
+                               } deriving (Eq, Show, Generic, ToJSON, FromJSON)
+instance FromForm ProfileData
+
+type ProfileAPI =  "profile" :> ( AuthProtect "cookie-auth" :> UVerb 'GET '[HTML] [ WithStatus 401 RawHtml
+                                                                                  , WithStatus 404 RawHtml
+                                                                                  , WithStatus 200 RawHtml
+                                                                                  ]
+                             :<|> AuthProtect "cookie-auth" :> "form"
+                                    :> UVerb 'GET '[HTML] [ WithStatus 401 RawHtml
+                                                          , WithStatus 200 RawHtml
+                                                          ]
+                             :<|> AuthProtect "cookie-auth" :> ReqBody '[FormUrlEncoded] ProfileData
+                                    :> UVerb 'POST '[HTML] [ WithStatus 401 RawHtml
+                                                           , WithStatus 303 ( Headers '[ Header "Location" RedirectUrl
+                                                                                       ] NoContent )
+                                                           ]
+                                )
 
 profileAPI :: Proxy ProfileAPI
 profileAPI = Proxy
@@ -33,7 +71,7 @@ profileServerReader = asks $ \env ->
                          (readerToHandler env)
                          profileServerT
 
-data ProfileGetContext = ProfileGetContext { profileAccountId :: Int32
+data ProfileGetContext = ProfileGetContext { profileAccountId   :: Int32
                                            , profileAccountName :: TL.Text
                                            } deriving (Generic, Show)
 instance ToJSON ProfileGetContext
@@ -41,14 +79,79 @@ instance FromJSON ProfileGetContext
 
 profileServerT :: ServerT ProfileAPI ReaderHandler
 profileServerT = profileGetHandler
+            :<|> profileGetFormHandler
+            :<|> profilePostHandler
 
   where profileGetHandler :: Maybe SignInAccount
-                          -> ReaderHandler RawHtml
-        profileGetHandler Nothing        = TP.htmlHandler mempty "/sign_up.html"
+                          -> ReaderHandler ( Union '[ WithStatus 401 RawHtml
+                                                    , WithStatus 404 RawHtml
+                                                    , WithStatus 200 RawHtml ] )
+        profileGetHandler Nothing = do
+          html <- TP.htmlHandler context "/sign_in.html"
+          respond $ WithStatus @401 $ html
+          where
+                context = HS.fromList [ authFailHandlerMessage ]
         profileGetHandler (Just account) = do
           pool <- asks getPool
-          TP.htmlHandler context "/profile.html"
-          where context = HS.fromList [ ( "ctx"
-                                         , toJSON $ ProfileGetContext (accountId account)
-                                                                      (accountName account))
-                                      ]
+          profile <- liftIO $ selectProfile pool account
+          case profile of
+            Nothing -> do html <- TP.htmlHandler context "/profile_form.html"
+                          respond $ WithStatus @404 $ html
+              where
+                    context = HS.fromList [ ( "globalMsgs"
+                                            , toJSON ["Haven't created an account." :: Text] ) ]
+            Just _  -> do html <- TP.htmlHandler context "/profile.html"
+                          respond $ WithStatus @200 $ html
+              where
+                    context = HS.fromList [ ( "ctx"
+                                            , toJSON $ ProfileGetContext
+                                                        (accountId account)
+                                                        (accountName account) ) ]
+          where
+                selectProfile pool account =
+                  withResource pool $ \conn -> runBeamPostgres conn $
+                  runSelectReturningOne $ select $
+                  filter_ (\profile -> _profileAccountId profile ==.
+                                       (AccountId . val_ . accountId) account) $
+                  all_ $ _healthProfile healthDb
+
+        profileGetFormHandler :: Maybe SignInAccount
+                              -> ReaderHandler ( Union '[ WithStatus 401 RawHtml
+                                                        , WithStatus 200 RawHtml ] )
+        profileGetFormHandler Nothing        = do html <- TP.htmlHandler context "/sign_in.html"
+                                                  respond $ WithStatus @401 $ html
+          where
+                context = HS.fromList [ authFailHandlerMessage ]
+        profileGetFormHandler (Just account) = do
+          html <- TP.htmlHandler mempty "/profile_form.html"
+          respond $ WithStatus @200 $ html
+
+        profilePostHandler :: (ToHttpApiData RedirectUrl, IsString RedirectUrl) =>
+             Maybe SignInAccount
+          -> ProfileData
+          -> ReaderHandler ( Union '[ WithStatus 401 RawHtml
+                                    , WithStatus 303 (Headers '[ Header "Location" RedirectUrl] NoContent ) ] )
+        profilePostHandler Nothing _ = do html <- TP.htmlHandler context "/sign_in.html"
+                                          respond $ WithStatus @401 $ html
+          where
+                context = HS.fromList [ authFailHandlerMessage ]
+
+        profilePostHandler (Just account) profileFormData = do
+          pool <- asks getPool
+          profile <- liftIO $ insertProfile pool account profileFormData
+          red <- redirect ("/auth/sign_in" :: RedirectUrl)
+          respond $ WithStatus @303 $ red
+
+            where
+                  insertProfile :: Pool Connection -> SignInAccount -> ProfileData -> IO Profile
+                  insertProfile pool account profileFormData = do
+                    [profile] <- withResource pool $ \conn -> runBeamPostgres conn $
+                      runInsertReturningList $ Database.Beam.insert (_healthProfile healthDb) $
+                      insertExpressions [ Profile { _profileId         = default_
+                                                  , _profileAccountId  = AccountId $ val_ $ accountId account
+                                                  , _profileGender     = val_ $ bool True False $
+                                                                                gender profileFormData == "male"
+                                                  , _profileBirthDate  = val_ $ birthDate profileFormData
+                                                  , _profileInitHeight = val_ $ initHeight profileFormData
+                                                  } ]
+                    pure profile

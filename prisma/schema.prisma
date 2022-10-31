@@ -7,25 +7,35 @@ model account {
   id       Int       @id @default(autoincrement())
   name     String    @unique
   password String
-  // profile  profile?
+  profile  profile?
   session  session[]
 }
 
 model session {
-  id         String   @id
-  account    account  @relation(fields: [account_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  id         String            @id
+  account    account           @relation(fields: [account_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
   account_id Int
-  expire_at  DateTime @default(dbgenerated("now() + INTERVAL '31 days'")) @db.Timestamptz
+  expire_at  DateTime          @default(dbgenerated("now() + INTERVAL '31 days'")) @db.Timestamptz
+  session    session_message[]
 }
 
-// model profile {
-//   id          Int      @id @default(autoincrement())
-//   account     account  @relation(fields: [account_id], references: [id], onDelete: Cascade)
-//   account_id  Int      @unique
-//   birthday    DateTime @db.Date
-//   init_height Int
-//   health_record health_record[]
-// }
+model session_message {
+  id         String   @id
+  session    session  @relation(fields: [session_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  session_id String
+  content    String
+  expire_at  DateTime @default(dbgenerated("now() + INTERVAL '5 minutes'")) @db.Timestamptz
+}
+
+model profile {
+  id          Int      @id @default(autoincrement())
+  account     account  @relation(fields: [account_id], references: [id], onDelete: Cascade)
+  account_id  Int      @unique
+  gender      Boolean
+  birth_date  DateTime @db.Date
+  init_height Int
+  // health_record health_record[]
+}
 
 // model health_record {
 //   id         Int     @id @default(autoincrement())
