@@ -1,0 +1,37 @@
+{% extends "layout.html" %}
+
+{%- block title %}編輯記錄{% endblock %}
+
+{%- block head %}
+{% endblock %}
+
+{%- block content %}
+<main>
+  <section aria-labelledby="base-title">
+    <h1 id="base-title">編輯記錄</h1>
+
+    <form action="/health_record" method="post" aria-labelledby="base-title">
+      <label for="record-date">日期：</label>
+      <input type="date" name="postDate" id="record-date" required value="{{ healthRecord.postDate }}">
+
+      <label for="height-input">身高（cm）：</label>
+      <input type="number" name="postHeight" id="height-input" required value="{{ healthRecord.postHeight }}">
+
+      <label for="weight-input">體重（kg）：</label>
+      <input type="number" name="postWeight" id="weight-input" required value="{{ healthRecord.postWeight }}">
+
+      <label for="body-fat-percentage">體脂率（%）：選填</label>
+      <input type="number" name="postBodyFatPercentage" id="body-fat-percentage"
+        value="{{ healthRecord.postBodyFatPercentage }}">
+
+      <label for="waistline-cm">腰圍（cm）：選填</label>
+      <input type="number" name="postWaistlineCm" id="waistline-cm" value="{{ healthRecord.postWaistlineCm }}">
+
+      <button type="submit">送出</button>
+    </form>
+  </section>
+</main>
+{% endblock %}
+
+{%- block script %}
+{% endblock %}
