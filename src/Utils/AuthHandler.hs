@@ -23,6 +23,9 @@ import Data.Text.Encoding as TSE
 import Data.Time
 import Text.Ginger
 import Data.Aeson
+import qualified Utils.TemplateHandler as TP
+import qualified Data.HashMap.Strict as HS
+import Utils.TemplateHandler
 
 type instance AuthServerData (AuthProtect "cookie-auth") = Maybe SignInAccount
 

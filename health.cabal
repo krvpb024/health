@@ -28,6 +28,7 @@ library
       Conf
       Lib
       Route.Auth
+      Route.HealthRecord
       Route.Profile
       Route.Static
       Schema
@@ -60,6 +61,7 @@ library
     , password
     , postgresql-simple
     , resource-pool
+    , scientific
     , servant
     , servant-server
     , text
@@ -101,6 +103,7 @@ executable health-exe
     , password
     , postgresql-simple
     , resource-pool
+    , scientific
     , servant
     , servant-server
     , text
@@ -146,6 +149,7 @@ test-suite health-test
     , password
     , postgresql-simple
     , resource-pool
+    , scientific
     , servant
     , servant-server
     , text

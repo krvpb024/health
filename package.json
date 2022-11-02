@@ -37,5 +37,10 @@
     "stylelint-no-unsupported-browser-features": "^5.0.4",
     "stylelint-use-logical": "^2.0.0",
     "stylelint-use-nesting": "^3.0.0"
+  },
+  "@parcel/transformer-css": {
+    "drafts": {
+      "nesting": true
+    }
   }
 }

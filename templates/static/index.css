@@ -1,7 +1,7 @@
-html {
-  font-size: 1rem;
-}
+@layer utils, component, page, base;
 
-.inset {
-  inset: 0;
+@layer base {
+  html {
+    font-size: 1rem;
+  }
 }

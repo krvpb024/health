@@ -4,7 +4,6 @@
 
 module Lib (startApp) where
 
-import Database.PostgreSQL.Simple
 import Network.Wai
 import Network.Wai.Handler.Warp
 import Servant
@@ -14,10 +13,10 @@ import Route.Static
 import Route.Auth
 import Control.Monad.Trans.Reader
 import Conf
-import Utils.TemplateHandler
-import Data.HashMap.Strict as HS
+import Utils.TemplateHandler as TP
 import Utils.AuthHandler
 import Route.Profile
+import Route.HealthRecord
 
 type BaseAPI = Get '[HTML] RawHtml
 
@@ -26,9 +25,10 @@ baseAPI = Proxy
 
 baseServer :: Server BaseAPI
 baseServer = baseHandler
-  where baseHandler = Utils.TemplateHandler.htmlHandler mempty "/index.html"
+  where baseHandler = TP.htmlHandler mempty "/index.html"
 
 type API = AuthAPI
+      :<|> HealthRecordAPI
       :<|> ProfileAPI
       :<|> StaticAPI
       :<|> BaseAPI
@@ -37,7 +37,9 @@ server :: Reader Env (Server API)
 server = do
   authServer <- authServerReader
   profileServer <- profileServerReader
+  healthRecordServer <- healthRecordServerReader
   return $ authServer
+      :<|> healthRecordServer
       :<|> profileServer
       :<|> staticServer
       :<|> baseServer

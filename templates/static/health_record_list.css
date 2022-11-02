@@ -1,0 +1,15 @@
+@layer page.component, page.base;
+
+@layer page.component {
+  .record-table {
+    border-collapse: collapse;
+
+    & .caption {
+      text-align: start;
+    }
+
+    & :is(td, th) {
+      border: 1px solid black;
+    }
+  }
+}

@@ -1,0 +1,43 @@
+{% extends "layout.html" %}
+
+{%- block head %}
+<link rel="stylesheet" href="./static/health_record_list.css">
+{% endblock %}
+
+{%- block content %}
+<main>
+  <table class="record-table">
+    <caption class="caption">健康記錄</caption>
+
+    <thead>
+      <tr>
+        <th scope="col">計錄時間</th>
+        <th scope="col">身高（cm）</th>
+        <th scope="col">體重（kg）</th>
+        <th scope="col">體脂率（%）</th>
+        <th scope="col">腰圍（cm）</th>
+      </tr>
+    </thead>
+
+    <tbody>
+      {% for healthRecord in healthRecordList %}
+      <tr>
+        <td>{{ healthRecord.recordAt }}</td>
+        <td>{{ healthRecord.height }}</td>
+        <td>{{ healthRecord.weight }}</td>
+        <td>
+          {% if healthRecord.bodyFatPercentage %}
+          {{ healthRecord.bodyFatPercentage }}%
+          {% endif %}
+        </td>
+        <td>
+          {% if healthRecord.waistlineCm %}
+          {{ healthRecord.waistlineCm }}
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</main>
+{% endblock %}
