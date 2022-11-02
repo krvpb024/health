@@ -4,45 +4,47 @@
 
 {%- block content %}
 <main>
-  <h1>建立個人檔案</h1>
-  <p>在開始記錄你的健康之前，我們需要先取得你的一些資料。</p>
+  <section aria-labelledby="base-title">
+    <h1 id="base-title">建立個人檔案</h1>
+    <p>在開始記錄你的健康之前，我們需要先取得你的一些資料。</p>
 
-  <section id="profile-description-section" aria-labelledby="profile-description-title">
-    <h2 id="profile-description-title">為什麼需要提供這些個人資料？</h2>
+    <section id="profile-description-section" aria-labelledby="profile-description-title">
+      <h2 id="profile-description-title">為什麼需要提供這些個人資料？</h2>
 
-    <p>
-      依照台灣衛服部<a href="https://www.hpa.gov.tw/Pages/Detail.aspx?nodeid=542&pid=9737">成人健康體位標準</a>，以下欄位為計算時所需資料。
-    </p>
-  </section>
+      <p>
+        依照台灣衛服部<a href="https://www.hpa.gov.tw/Pages/Detail.aspx?nodeid=542&pid=9737">成人健康體位標準</a>，以下欄位為計算時所需資料。
+      </p>
+    </section>
 
-  <section id="profile-form-section" aria-labelledby="profile-form-title">
-    <h2 id="profile-form-title">填寫個人資料</h2>
+    <section id="profile-form-section" aria-labelledby="profile-form-title">
+      <h2 id="profile-form-title">填寫個人資料</h2>
 
-    <form action="/profile" method="post" aria-labelledby="profile-form-title">
-      <label for="birth_date">
-        生日
-        <span>（兒童、青少年、成人的標準不同）</span>
-      </label>
-      <input type="date" name="birthDate" id="birth_date">
+      <form action="/profile" method="post" aria-labelledby="profile-form-title">
+        <label for="birth-date">
+          生日
+          <span>（兒童、青少年、成人的標準不同）</span>
+        </label>
+        <input type="date" name="birthDate" id="-input-birth-date" autocomplete="bday">
 
-      <fieldset>
-        <legend>
-          性別
-          <span>（不同生理性別的標準不同）</span>
-        </legend>
+        <fieldset>
+          <legend>
+            性別
+            <span>（不同生理性別的標準不同）</span>
+          </legend>
 
-        <label for="gender_male">男</label>
-        <input type="radio" name="gender" id="gender_male" value="male">
+          <input type="radio" name="gender" id="radio-gender-male" value="male">
+          <label for="radio-gender-male">男</label>
 
-        <label for="gender_female">女</label>
-        <input type="radio" name="gender" id="gender_female" value="female">
-      </fieldset>
+          <input type="radio" name="gender" id="radio-gender-female" value="female">
+          <label for="radio-gender-female">女</label>
+        </fieldset>
 
-      <label for="height">身高</label>
-      <input type="number" name="initHeight" id="height">
+        <label for="height">身高</label>
+        <input type="number" name="initHeight" id="input-height">
 
-      <button type="submit">送出</button>
-    </form>
+        <button type="submit">送出</button>
+      </form>
+    </section>
   </section>
 </main>
 {% endblock %}
