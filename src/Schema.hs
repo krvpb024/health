@@ -58,29 +58,11 @@ instance Table SessionT where
   primaryKey :: SessionT column -> PrimaryKey SessionT column
   primaryKey = SessionId . _sessionId
 
-data SessionMessageT f = SessionMessage { _sessionMessageId        :: Columnar f Integer
-                                        , _sessionMessageSessionId :: PrimaryKey SessionT f
-                                        , _sessionMessageContent   :: Columnar f TL.Text
-                                        } deriving (Generic, Beamable)
-
-type SessionMessage = SessionMessageT Identity
-type SessionMessageId = PrimaryKey SessionMessageT Identity
-
-deriving instance Show SessionMessage
-deriving instance Eq SessionMessage
-
-instance Table SessionMessageT where
-  data PrimaryKey SessionMessageT f = SessionMessageId (Columnar f Integer)
-      deriving (Generic, Beamable)
-
-  primaryKey :: SessionMessageT column -> PrimaryKey SessionMessageT column
-  primaryKey = SessionMessageId . _sessionMessageId
-
 data ProfileT f = Profile { _profileId         :: Columnar f Integer
                           , _profileAccountId  :: PrimaryKey AccountT f
                           , _profileGender     :: Columnar f Bool
                           , _profileBirthDate  :: Columnar f Day
-                          , _profileInitHeight :: Columnar f Integer
+                          , _profileInitHeight :: Columnar f Scientific
                           } deriving (Generic, Beamable)
 
 type Profile = ProfileT Identity
@@ -124,7 +106,6 @@ instance Table HealthRecordT where
 
 data HealthDb f = HealthDb { _healthAccount        :: f (TableEntity AccountT)
                            , _healthSession        :: f (TableEntity SessionT)
-                           , _healthSessionMessage :: f (TableEntity SessionMessageT)
                            , _healthProfile        :: f (TableEntity ProfileT)
                            , _healthHealthRecord   :: f (TableEntity HealthRecordT)
                            } deriving (Generic, Database be)
@@ -135,11 +116,6 @@ healthDb = defaultDbSettings `withDbModification`
                       modifyTableFields
                       tableModification {
                         _sessionAccountId = AccountId (fieldNamed "account_id")
-                      }
-                 , _healthSessionMessage =
-                      modifyTableFields
-                      tableModification {
-                        _sessionMessageSessionId = SessionId (fieldNamed "session_id")
                       }
                  , _healthProfile =
                       modifyTableFields

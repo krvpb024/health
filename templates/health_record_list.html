@@ -17,7 +17,7 @@
         <th scope="col">BMI</th>
         <th scope="col">體脂率（%）</th>
         <th scope="col">腰圍（cm）</th>
-        <th scope="col">編輯</th>
+        <th scope="col">資料操作</th>
       </tr>
     </thead>
 
@@ -39,7 +39,10 @@
           {% endif %}
         </td>
         <td>
-          <a href="/health_record/form/{{ healthRecord['recordId'] }}">編輯</a>
+          <a href="/health_record/form/{{ healthRecord['recordId'] }}/put">編輯</a>
+          <form action="/health_record/{{ healthRecord['recordId'] }}/delete" method="post">
+            <button type="submit">刪除</button>
+          </form>
         </td>
       </tr>
       {% endfor %}

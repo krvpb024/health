@@ -39,12 +39,21 @@ import Database.Beam
 import Database.Beam.Backend.SQL.BeamExtensions
 import Schema
 import Data.Bool
+import Data.Fixed
+import Data.Scientific
 
-data ProfileData = ProfileData { birthDate  :: Day
-                               , gender     :: Text
-                               , initHeight :: Integer
-                               } deriving (Eq, Show, Generic, ToJSON, FromJSON)
-instance FromForm ProfileData
+data ProfileData = ProfileData {
+    birthDate  :: Day
+  , gender     :: Text
+  , initHeight :: Double
+  } deriving (Eq, Show, Generic, ToJSON, FromJSON, FromForm)
+
+data ProfileGetContext = ProfileGetContext {
+    profileAccountName :: TL.Text
+  , profileGender      :: Text
+  , profileBirthDate   :: Day
+  } deriving (Generic, Show, ToJSON, FromJSON)
+
 
 type ProfileAPI =  "profile" :> ( AuthProtect "cookie-auth" :> UVerb 'GET '[HTML] [ WithStatus 401 RawHtml
                                                                                   , WithStatus 404 RawHtml
@@ -70,13 +79,6 @@ profileServerReader = asks $ \env ->
                          (Proxy :: Proxy '[AuthHandler Request (Maybe SignInAccount)])
                          (readerToHandler env)
                          profileServerT
-
-data ProfileGetContext = ProfileGetContext { profileAccountName :: TL.Text
-                                           , profileGender      :: Text
-                                           , profileBirthDate   :: Day
-                                           } deriving (Generic, Show)
-instance ToJSON ProfileGetContext
-instance FromJSON ProfileGetContext
 
 profileServerT :: ServerT ProfileAPI ReaderHandler
 profileServerT = profileGetHandler
@@ -153,6 +155,6 @@ profileServerT = profileGetHandler
                                                   , _profileGender     = val_ $ bool False True $
                                                                                 gender profileFormData == "male"
                                                   , _profileBirthDate  = val_ $ birthDate profileFormData
-                                                  , _profileInitHeight = val_ $ initHeight profileFormData
+                                                  , _profileInitHeight = val_ $ fromFloatDigits $ initHeight profileFormData
                                                   } ]
                     pure profile
