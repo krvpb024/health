@@ -1,0 +1,36 @@
+{% extends "layout.html" %}
+
+{%- block title %}新增記錄{% endblock %}
+
+{%- block head %}
+{% endblock %}
+
+{%- block content %}
+<main>
+  <section aria-labelledby="base-title">
+    <h1 id="base-title">新增記錄</h1>
+
+    <form action="POST" aria-labelledby="base-title">
+      <label for="record-date">日期：</label>
+      <input type="date" name="recordDate" id="record-date" required value="{{ currentDate }}">
+
+      <label for="height-input">身高（cm）：</label>
+      <input type="number" name="height" id="height-input" required value="{{ initHeight }}">
+
+      <label for="weight-input">體重（kg）：</label>
+      <input type="number" name="weight" id="weight-input" required>
+
+      <label for="body-fat-percentage">體脂率（%）：選填</label>
+      <input type="number" name="bodyFatPercentage" id="body-fat-percentage">
+
+      <label for="waistline-cm">腰圍（cm）：選填</label>
+      <input type="number" name="waistlineCm" id="waistline-cm">
+
+      <button type="submit">送出</button>
+    </form>
+  </section>
+</main>
+{% endblock %}
+
+{%- block script %}
+{% endblock %}

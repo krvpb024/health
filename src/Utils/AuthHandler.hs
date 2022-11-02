@@ -30,7 +30,7 @@ import Utils.TemplateHandler
 type instance AuthServerData (AuthProtect "cookie-auth") = Maybe SignInAccount
 
 data SignInAccount = SignInAccount { sessionId :: Text
-                                   , accountId :: Int32
+                                   , accountId :: Integer
                                    , accountName :: Text
                                    } deriving (Show)
 

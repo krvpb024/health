@@ -12,20 +12,20 @@ model account {
 }
 
 model session {
-  id         String            @id
-  account    account           @relation(fields: [account_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  id         String   @id
+  account    account  @relation(fields: [account_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
   account_id Int
-  expire_at  DateTime          @default(dbgenerated("(now() + '31 days'::interval)")) @db.Timestamptz
-  session    session_message[]
+  expire_at  DateTime @default(dbgenerated("(now() + '31 days'::interval)")) @db.Timestamptz
+  // session    session_message[]
 }
 
-model session_message {
-  id         String   @id
-  session    session  @relation(fields: [session_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  session_id String
-  content    String
-  expire_at  DateTime @default(dbgenerated("(now() + '5 minutes'::interval)")) @db.Timestamptz
-}
+// model session_message {
+//   id         String   @id
+//   session    session  @relation(fields: [session_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+//   session_id String
+//   content    String
+//   expire_at  DateTime @default(dbgenerated("(now() + '5 minutes'::interval)")) @db.Timestamptz
+// }
 
 model profile {
   id            Int             @id @default(autoincrement())
@@ -45,5 +45,6 @@ model health_record {
   weight              Unsupported("NUMERIC")
   body_fat_percentage Unsupported("NUMERIC")?
   waistline_cm        Unsupported("NUMERIC")?
+  date                DateTime                @default(now()) @db.Date
   record_at           DateTime                @default(now()) @db.Timestamptz
 }

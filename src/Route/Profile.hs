@@ -42,7 +42,7 @@ import Data.Bool
 
 data ProfileData = ProfileData { birthDate  :: Day
                                , gender     :: Text
-                               , initHeight :: Int32
+                               , initHeight :: Integer
                                } deriving (Eq, Show, Generic, ToJSON, FromJSON)
 instance FromForm ProfileData
 
@@ -113,8 +113,7 @@ profileServerT = profileGetHandler
                 selectProfile pool account =
                   withResource pool $ \conn -> runBeamPostgres conn $
                   runSelectReturningOne $ select $
-                  filter_ (\profile -> _profileAccountId profile ==.
-                                       (AccountId . val_ . accountId) account) $
+                  filter_ (((AccountId . val_ . accountId) account ==.) . _profileAccountId) $
                   all_ $ _healthProfile healthDb
 
         profileFormGetHandler :: Maybe SignInAccount

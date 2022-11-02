@@ -11,20 +11,23 @@
 
     <thead>
       <tr>
-        <th scope="col">計錄時間</th>
+        <th scope="col">日期</th>
         <th scope="col">身高（cm）</th>
         <th scope="col">體重（kg）</th>
+        <th scope="col">BMI</th>
         <th scope="col">體脂率（%）</th>
         <th scope="col">腰圍（cm）</th>
+        <th scope="col">編輯</th>
       </tr>
     </thead>
 
     <tbody>
       {% for healthRecord in healthRecordList %}
       <tr>
-        <td>{{ healthRecord.recordAt }}</td>
+        <td>{{ healthRecord.recordDate }}</td>
         <td>{{ healthRecord.height }}</td>
         <td>{{ healthRecord.weight }}</td>
+        <td>{{ healthRecord.bmi }}</td>
         <td>
           {% if healthRecord.bodyFatPercentage %}
           {{ healthRecord.bodyFatPercentage }}%
@@ -34,6 +37,9 @@
           {% if healthRecord.waistlineCm %}
           {{ healthRecord.waistlineCm }}
           {% endif %}
+        </td>
+        <td>
+          <a href="/health_record/form/{{ healthRecord['recordId'] }}">編輯</a>
         </td>
       </tr>
       {% endfor %}

@@ -13,16 +13,10 @@ module Schema where
 
 import Database.Beam
 import Data.Text.Lazy as TL
-import Data.Int
 import Data.Time
-import Data.Fixed
-import Database.Beam.Backend.SQL
-import Database.Beam.Postgres
-import Database.PostgreSQL.Simple
-import Database.PostgreSQL.Simple.FromField
 import Data.Scientific
 
-data AccountT f = Account { _accountId       :: Columnar f Int32
+data AccountT f = Account { _accountId       :: Columnar f Integer
                           , _accountName     :: Columnar f TL.Text
                           , _accountPassword :: Columnar f TL.Text
                           } deriving (Generic, Beamable)
@@ -37,7 +31,7 @@ deriving instance Show AccountId
 deriving instance Eq AccountId
 
 instance Table AccountT where
-  data PrimaryKey AccountT f = AccountId (Columnar f Int32)
+  data PrimaryKey AccountT f = AccountId (Columnar f Integer)
       deriving (Generic, Beamable)
 
   primaryKey :: AccountT column -> PrimaryKey AccountT column
@@ -64,7 +58,7 @@ instance Table SessionT where
   primaryKey :: SessionT column -> PrimaryKey SessionT column
   primaryKey = SessionId . _sessionId
 
-data SessionMessageT f = SessionMessage { _sessionMessageId        :: Columnar f Int32
+data SessionMessageT f = SessionMessage { _sessionMessageId        :: Columnar f Integer
                                         , _sessionMessageSessionId :: PrimaryKey SessionT f
                                         , _sessionMessageContent   :: Columnar f TL.Text
                                         } deriving (Generic, Beamable)
@@ -76,17 +70,17 @@ deriving instance Show SessionMessage
 deriving instance Eq SessionMessage
 
 instance Table SessionMessageT where
-  data PrimaryKey SessionMessageT f = SessionMessageId (Columnar f Int32)
+  data PrimaryKey SessionMessageT f = SessionMessageId (Columnar f Integer)
       deriving (Generic, Beamable)
 
   primaryKey :: SessionMessageT column -> PrimaryKey SessionMessageT column
   primaryKey = SessionMessageId . _sessionMessageId
 
-data ProfileT f = Profile { _profileId         :: Columnar f Int32
+data ProfileT f = Profile { _profileId         :: Columnar f Integer
                           , _profileAccountId  :: PrimaryKey AccountT f
                           , _profileGender     :: Columnar f Bool
                           , _profileBirthDate  :: Columnar f Day
-                          , _profileInitHeight :: Columnar f Int32
+                          , _profileInitHeight :: Columnar f Integer
                           } deriving (Generic, Beamable)
 
 type Profile = ProfileT Identity
@@ -99,18 +93,19 @@ deriving instance Show ProfileId
 deriving instance Eq ProfileId
 
 instance Table ProfileT where
-  data PrimaryKey ProfileT f = ProfileId (Columnar f Int32)
+  data PrimaryKey ProfileT f = ProfileId (Columnar f Integer)
       deriving (Generic, Beamable)
 
   primaryKey :: ProfileT column -> PrimaryKey ProfileT column
   primaryKey = ProfileId . _profileId
 
-data HealthRecordT f = HealthRecord { _healthRecordId                :: Columnar f Int32
+data HealthRecordT f = HealthRecord { _healthRecordId                :: Columnar f Integer
                                     , _healthRecordProfileId         :: PrimaryKey ProfileT f
-                                    , _healthRecordHeight            :: Columnar f Int32
+                                    , _healthRecordHeight            :: Columnar f Scientific
                                     , _healthRecordWeight            :: Columnar f Scientific
                                     , _healthRecordBodyFatPercentage :: Columnar f (Maybe Scientific)
                                     , _healthRecordWaistlineCm       :: Columnar f (Maybe Scientific)
+                                    , _healthRecordDate              :: Columnar f Day
                                     , _healthRecordRecordAt          :: Columnar f LocalTime
                                     } deriving (Generic, Beamable)
 
@@ -121,7 +116,7 @@ deriving instance Show HealthRecord
 deriving instance Eq HealthRecord
 
 instance Table HealthRecordT where
-  data PrimaryKey HealthRecordT f = HealthRecordId (Columnar f Int32)
+  data PrimaryKey HealthRecordT f = HealthRecordId (Columnar f Integer)
       deriving (Generic, Beamable)
 
   primaryKey :: HealthRecordT column -> PrimaryKey HealthRecordT column
@@ -160,6 +155,7 @@ healthDb = defaultDbSettings `withDbModification`
                       , _healthRecordWeight            = fieldNamed "weight"
                       , _healthRecordBodyFatPercentage = fieldNamed "body_fat_percentage"
                       , _healthRecordWaistlineCm       = fieldNamed "waistline_cm"
+                      , _healthRecordDate              = fieldNamed "date"
                       , _healthRecordRecordAt          = fieldNamed "record_at"
                       }
   }
