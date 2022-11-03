@@ -39,18 +39,16 @@ import Database.Beam
 import Database.Beam.Backend.SQL.BeamExtensions
 import Schema
 import Data.Bool
-import Data.Fixed
-import Data.Scientific
 
 data ProfileData = ProfileData {
     birthDate  :: Day
-  , gender     :: Text
+  , gender     :: TL.Text
   , initHeight :: Double
   } deriving (Eq, Show, Generic, ToJSON, FromJSON, FromForm)
 
 data ProfileGetContext = ProfileGetContext {
     profileAccountName :: TL.Text
-  , profileGender      :: Text
+  , profileGender      :: TL.Text
   , profileBirthDate   :: Day
   } deriving (Generic, Show, ToJSON, FromJSON)
 
@@ -155,6 +153,6 @@ profileServerT = profileGetHandler
                                                   , _profileGender     = val_ $ bool False True $
                                                                                 gender profileFormData == "male"
                                                   , _profileBirthDate  = val_ $ birthDate profileFormData
-                                                  , _profileInitHeight = val_ $ fromFloatDigits $ initHeight profileFormData
+                                                  , _profileHeight = val_ $ initHeight profileFormData
                                                   } ]
                     pure profile

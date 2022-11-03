@@ -1,52 +1,66 @@
 {% extends "layout.html" %}
 
+{%- block title %}我的記錄{% endblock %}
+
 {%- block head %}
 <link rel="stylesheet" href="./static/health_record_list.css">
 {% endblock %}
 
 {%- block content %}
 <main>
-  <table class="record-table">
-    <caption class="caption">健康記錄</caption>
+  <section aria-labelledby="base-title">
+    <h1 id="base-title">我的記錄</h1>
 
-    <thead>
-      <tr>
-        <th scope="col">日期</th>
-        <th scope="col">身高（cm）</th>
-        <th scope="col">體重（kg）</th>
-        <th scope="col">BMI</th>
-        <th scope="col">體脂率（%）</th>
-        <th scope="col">腰圍（cm）</th>
-        <th scope="col">資料操作</th>
-      </tr>
-    </thead>
+    <table class="record-table">
+      <caption class="caption">健康記錄</caption>
 
-    <tbody>
-      {% for healthRecord in healthRecordList %}
-      <tr>
-        <td>{{ healthRecord.recordDate }}</td>
-        <td>{{ healthRecord.height }}</td>
-        <td>{{ healthRecord.weight }}</td>
-        <td>{{ healthRecord.bmi }}</td>
-        <td>
-          {% if healthRecord.bodyFatPercentage %}
-          {{ healthRecord.bodyFatPercentage }}%
-          {% endif %}
-        </td>
-        <td>
-          {% if healthRecord.waistlineCm %}
-          {{ healthRecord.waistlineCm }}
-          {% endif %}
-        </td>
-        <td>
-          <a href="/health_record/{{ healthRecord['recordId'] }}/form">編輯</a>
-          <form action="/health_record/{{ healthRecord['recordId'] }}/delete" method="post">
-            <button type="submit">刪除</button>
-          </form>
-        </td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
+      <thead>
+        <tr>
+          <th scope="col">日期</th>
+          <th scope="col">身高（cm）</th>
+          <th scope="col">體重（kg）</th>
+          <th scope="col">BMI</th>
+          <th scope="col">體脂率（%）</th>
+          <th scope="col">腰圍（cm）</th>
+          <th scope="col">資料操作</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        {% for healthRecord in healthRecordList %}
+        <tr>
+          <td>{{ healthRecord.recordDate }}</td>
+          <td>{{ healthRecord.height }}</td>
+          <td>{{ healthRecord.weight }}</td>
+          <td>{{ healthRecord.bmi }}</td>
+          <td>
+            {% if healthRecord.bodyFatPercentage %}
+            {{ healthRecord.bodyFatPercentage }}%
+            {% endif %}
+          </td>
+          <td>
+            {% if healthRecord.waistlineCm %}
+            {{ healthRecord.waistlineCm }}
+            {% endif %}
+          </td>
+          <td>
+            <a href="/health_record/{{ healthRecord['recordId'] }}/form">編輯</a>
+
+            <details>
+              <summary class="delete-summary">刪除</summary>
+
+              <p id="delete-form-title">確認刪除記錄</p>
+
+              <form action="/health_record/{{ healthRecord['recordId'] }}/delete" method="post"
+                aria-labelledby="delete-form-title">
+                <button type="submit">確認</button>
+              </form>
+            </details>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </section>
 </main>
 {% endblock %}

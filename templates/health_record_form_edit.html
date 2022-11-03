@@ -10,7 +10,7 @@
   <section aria-labelledby="base-title">
     <h1 id="base-title">編輯記錄</h1>
 
-    <form action="/health_record" method="post" aria-labelledby="base-title">
+    <form action="/health_record/{{ healthRecordId }}/put" method="post" aria-labelledby="base-title">
       <label for="record-date">日期：</label>
       <input type="date" name="postDate" id="record-date" required value="{{ healthRecord.postDate }}">
 
@@ -31,6 +31,7 @@
     </form>
   </section>
 </main>
+
 {% endblock %}
 
 {%- block script %}

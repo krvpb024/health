@@ -12,4 +12,12 @@
       border: 1px solid black;
     }
   }
+
+  .delete-summary {
+    display: block flex;
+
+    &::-webkit-details-marker {
+      display: none;
+    }
+  }
 }

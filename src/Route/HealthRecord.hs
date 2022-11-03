@@ -4,7 +4,6 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 
 module Route.HealthRecord where
 
@@ -22,7 +21,6 @@ import Schema
 import Data.Pool
 import Database.Beam.Postgres
 import Database.Beam
-import Data.Scientific
 import Data.Time
 import Data.Aeson
 import Text.Ginger
@@ -32,6 +30,8 @@ import Data.Fixed
 import Web.FormUrlEncoded
 import Database.Beam.Backend.SQL.BeamExtensions
 import Data.ByteString.Lazy.UTF8 as BLU
+import Data.Int
+import Control.Exception
 
 type HealthRecordAPI = "health_record" :> ( AuthProtect "cookie-auth"
                                               :> UVerb 'GET '[HTML] [ WithStatus 401 RawHtml
@@ -50,7 +50,7 @@ type HealthRecordAPI = "health_record" :> ( AuthProtect "cookie-auth"
                                                                      , WithStatus 303 (Headers '[ Header "Location" RedirectUrl] NoContent )
                                                                      ]
                                        :<|> AuthProtect "cookie-auth"
-                                              :> Capture "recordId" Integer
+                                              :> Capture "recordId" Int32
                                               :> "delete"
                                               :> UVerb 'POST '[HTML] [ WithStatus 401 RawHtml
                                                                      , WithStatus 404 RawHtml
@@ -58,7 +58,7 @@ type HealthRecordAPI = "health_record" :> ( AuthProtect "cookie-auth"
                                                                      , WithStatus 303 (Headers '[ Header "Location" RedirectUrl] NoContent )
                                                                      ]
                                        :<|> AuthProtect "cookie-auth"
-                                              :> Capture "recordId" Integer
+                                              :> Capture "recordId" Int32
                                               :> "form"
                                               :> UVerb 'GET '[HTML] [ WithStatus 401 RawHtml
                                                                     , WithStatus 404 RawHtml
@@ -66,8 +66,9 @@ type HealthRecordAPI = "health_record" :> ( AuthProtect "cookie-auth"
                                                                     , WithStatus 200 RawHtml
                                                                     ]
                                        :<|> AuthProtect "cookie-auth"
-                                              :> Capture "recordId" Integer
+                                              :> Capture "recordId" Int32
                                               :> "put"
+                                              :> ReqBody '[FormUrlEncoded] PostHealthRecordData
                                               :> UVerb 'POST '[HTML] [ WithStatus 401 RawHtml
                                                                      , WithStatus 404 RawHtml
                                                                      , WithStatus 403 RawHtml
@@ -94,12 +95,12 @@ data PostHealthRecordData = PostHealthRecordData {
 } deriving (Eq, Show, Generic, ToJSON, FromJSON, FromForm)
 
 data HealthRecordWithComputedValue = HealthRecordWithComputedValue {
-      recordId          :: Integer
-    , height            :: Scientific
-    , weight            :: Scientific
+      recordId          :: Int32
+    , height            :: Double
+    , weight            :: Double
     , bmi               :: Centi
-    , bodyFatPercentage :: Maybe Scientific
-    , waistlineCm       :: Maybe Scientific
+    , bodyFatPercentage :: Maybe Double
+    , waistlineCm       :: Maybe Double
     , recordDate        :: Day
     , recordAt          :: String
   } deriving (Eq, Show, Generic, ToJSON, FromJSON)
@@ -157,8 +158,8 @@ healthRecordServerT = healthRecordListGetHandler
                                   "%F"
                                   (_healthRecordRecordAt healthRecord)
                   }
-                  where w = toRealFloat (_healthRecordWeight healthRecord)
-                        h = toRealFloat (_healthRecordHeight healthRecord) / 100
+                  where w = _healthRecordWeight healthRecord
+                        h = _healthRecordHeight healthRecord / 100
                         bmiValue = w / h / h :: Double
 
         healthRecordPostFormHandler :: Maybe SignInAccount
@@ -183,7 +184,7 @@ healthRecordServerT = healthRecordListGetHandler
               let context = HS.fromList [ ( "currentDate"
                                               , toJSON $ formatTime defaultTimeLocale "%F" currentTime )
                                           , ( "initHeight"
-                                              , toJSON $ _profileInitHeight profile ) ]
+                                              , toJSON $ _profileHeight profile ) ]
               html <- TP.htmlHandler context "/health_record_form.html"
               respond $ WithStatus @200 $ html
 
@@ -205,6 +206,7 @@ healthRecordServerT = healthRecordListGetHandler
               html <- TP.htmlHandler context "/sign_in.html"
               respond $ WithStatus @403 $ html
               where context = HS.fromList [( "globalMsgs", toJSON [TLE.decodeUtf8 $ errBody err] )]
+
             Right profile -> do
               liftIO $ print postHealthRecordData
               healthRecordId <- liftIO $ insertHealthRecord pool postHealthRecordData profile
@@ -215,24 +217,24 @@ healthRecordServerT = healthRecordListGetHandler
                   insertHealthRecord :: Pool Connection
                                      -> PostHealthRecordData
                                      -> Profile
-                                     -> IO Integer
+                                     -> IO Int32
                   insertHealthRecord pool postHealthRecordData profile = do
                     [healthRecord] <- withResource pool $ \conn -> runBeamPostgres conn $
                       runInsertReturningList $ insert (_healthHealthRecord healthDb) $
                       insertExpressions [ HealthRecord {
                           _healthRecordId = default_
                         , _healthRecordProfileId = val_ $ primaryKey profile
-                        , _healthRecordHeight = val_ $ fromFloatDigits $ postHeight postHealthRecordData
-                        , _healthRecordWeight = val_ $ fromFloatDigits $ postWeight postHealthRecordData
-                        , _healthRecordBodyFatPercentage = val_ $ fromFloatDigits <$> postBodyFatPercentage postHealthRecordData
-                        , _healthRecordWaistlineCm = val_ $ fromFloatDigits <$> postWaistlineCm postHealthRecordData
+                        , _healthRecordHeight = val_ $ postHeight postHealthRecordData
+                        , _healthRecordWeight = val_ $ postWeight postHealthRecordData
+                        , _healthRecordBodyFatPercentage = val_ $ postBodyFatPercentage postHealthRecordData
+                        , _healthRecordWaistlineCm = val_ $ postWaistlineCm postHealthRecordData
                         , _healthRecordDate = val_ $ postDate postHealthRecordData
                         , _healthRecordRecordAt = default_
                       } ]
                     pure (_healthRecordId healthRecord)
 
         healthRecordDeleteHandler :: Maybe SignInAccount
-                                  -> Integer
+                                  -> Int32
                                   -> ReaderHandler ( Union '[ WithStatus 401 RawHtml
                                                             , WithStatus 404 RawHtml
                                                             , WithStatus 403 RawHtml
@@ -258,6 +260,7 @@ healthRecordServerT = healthRecordListGetHandler
                   respond $ WithStatus @403 $ html
                   where context :: HS.HashMap VarName Value
                         context = HS.fromList [( "globalMsgs", toJSON [TLE.decodeUtf8 body] )]
+                _ -> throw err
             Right record -> liftIO $ do
               withResource pool $ \conn -> runBeamPostgres conn $
                 runDelete $ delete (_healthHealthRecord healthDb)
@@ -266,7 +269,7 @@ healthRecordServerT = healthRecordListGetHandler
               respond $ WithStatus @303 $ red
 
         healthRecordPutFormHandler ::Maybe SignInAccount
-                                  -> Integer
+                                  -> Int32
                                   -> ReaderHandler ( Union '[ WithStatus 401 RawHtml
                                                             , WithStatus 404 RawHtml
                                                             , WithStatus 403 RawHtml
@@ -280,55 +283,75 @@ healthRecordServerT = healthRecordListGetHandler
           dbResponse <- liftIO $ selectHealthRecord pool recordId account
           let authorizedRecord = dbResponse >>= checkRecordPermission account
           case authorizedRecord of
-            Left err ->
-              case err of
-                ServerError 404 _ body _ -> do
-                  html <- TP.htmlHandler context "/empty.html"
-                  respond $ WithStatus @404 $ html
-                  where context :: HS.HashMap VarName Value
-                        context = HS.fromList [( "globalMsgs", toJSON [TLE.decodeUtf8 body] )]
-                ServerError 403 _ body _ -> do
-                  html <- TP.htmlHandler context "/empty.html"
-                  respond $ WithStatus @403 $ html
-                  where context :: HS.HashMap VarName Value
-                        context = HS.fromList [( "globalMsgs", toJSON [TLE.decodeUtf8 body] )]
+            Left (ServerError 404 _ body _) -> do
+              html <- TP.htmlHandler context "/empty.html"
+              respond $ WithStatus @404 $ html
+              where context = HS.fromList [( "globalMsgs", toJSON [TLE.decodeUtf8 body] )]
+
+            Left (ServerError 403 _ body _) -> do
+              html <- TP.htmlHandler context "/empty.html"
+              respond $ WithStatus @403 $ html
+              where context = HS.fromList [( "globalMsgs", toJSON [TLE.decodeUtf8 body] )]
+
             Right record -> do
-              let context = HS.fromList [ ("healthRecord", toJSON PostHealthRecordData {
-                                                                      postHeight = toRealFloat $ _healthRecordHeight record
-                                                                    , postWeight = toRealFloat $ _healthRecordWeight record
-                                                                    , postBodyFatPercentage = toRealFloat <$> _healthRecordBodyFatPercentage record
-                                                                    , postWaistlineCm = toRealFloat <$> _healthRecordWaistlineCm record
-                                                                    , postDate = _healthRecordDate record } ) ]
+              let context = HS.fromList [ ( "healthRecordId", toJSON $ _healthRecordId record)
+                                        , ( "healthRecord", toJSON PostHealthRecordData {
+                                                                     postHeight = _healthRecordHeight record
+                                                                   , postWeight = _healthRecordWeight record
+                                                                   , postBodyFatPercentage = _healthRecordBodyFatPercentage record
+                                                                   , postWaistlineCm = _healthRecordWaistlineCm record
+                                                                   , postDate = _healthRecordDate record
+                                                                   } )
+                                        ]
               html <- TP.htmlHandler context "/health_record_form_edit.html"
               respond $ WithStatus @200 $ html
 
-        -- FIXME healthRecordPutHandler just match type
+            _ -> throw err500
+
         healthRecordPutHandler :: Maybe SignInAccount
-                               -> Integer
+                               -> Int32
+                               -> PostHealthRecordData
                                -> ReaderHandler ( Union '[ WithStatus 401 RawHtml
                                                          , WithStatus 404 RawHtml
                                                          , WithStatus 403 RawHtml
                                                          , WithStatus 303 (Headers '[ Header "Location" RedirectUrl] NoContent ) ] )
-        healthRecordPutHandler Nothing _ = do
+        healthRecordPutHandler Nothing _ _ = do
           html <- TP.htmlHandler context "/sign_in.html"
           respond $ WithStatus @401 $ html
           where
                 context = HS.fromList [ authFailHandlerMessage ]
-        healthRecordPutHandler (Just account) recordId = do
+        healthRecordPutHandler (Just account) recordId putHealthRecordData = do
           pool <- asks getPool
           record <- liftIO $ selectHealthRecord pool recordId account
           let authorizedRecord = record >>= checkRecordPermission account
           case authorizedRecord of
-            Left err -> do
-              html <- TP.htmlHandler context "/sign_in.html"
+            Left (ServerError 404 _ body _) -> do
+              html <- TP.htmlHandler context "/empty.html"
+              respond $ WithStatus @404 $ html
+              where context = HS.fromList [( "globalMsgs", toJSON [TLE.decodeUtf8 body] )]
+
+            Left (ServerError 403 _ body _) -> do
+              html <- TP.htmlHandler context "/empty.html"
               respond $ WithStatus @403 $ html
-              where context :: HS.HashMap VarName Value
-                    context = HS.fromList [( "globalMsgs", toJSON [TLE.decodeUtf8 $ errBody err] )]
-            Right _ -> do
+              where context = HS.fromList [( "globalMsgs", toJSON [TLE.decodeUtf8 body] )]
+
+            Right healthRecord -> do
+              pool <- asks getPool
+              liftIO $ updateHealthRecord pool putHealthRecordData
               red <- redirect ("/health_record" :: RedirectUrl)
               respond $ WithStatus @303 $ red
-          where
-                context = HS.fromList [ authFailHandlerMessage ]
+              where
+                    updateHealthRecord pool putHealthRecordData =
+                      withResource pool $ \conn -> runBeamPostgres conn $ do
+                        runUpdate $ save (_healthHealthRecord healthDb) (healthRecord {
+                            _healthRecordHeight = postHeight putHealthRecordData
+                          , _healthRecordWeight = postWeight putHealthRecordData
+                          , _healthRecordBodyFatPercentage = postBodyFatPercentage putHealthRecordData
+                          , _healthRecordWaistlineCm = postWaistlineCm putHealthRecordData
+                          , _healthRecordDate = postDate putHealthRecordData
+                        })
+
+            _ -> throw err500
 
 recordErr404 :: ServerError
 recordErr404 = err404 { errBody = TLE.encodeUtf8 "找不到這筆記錄" }
@@ -347,7 +370,7 @@ selectProfile pool signInAccount = do
   pure $ maybeToRight err403 { errBody = TLE.encodeUtf8 "你必須先建立個人檔案"} profile
 
 selectHealthRecord :: Pool Connection
-                    -> Integer
+                    -> Int32
                     -> SignInAccount
                     -> IO (Either ServerError (Account, Profile, HealthRecord))
 selectHealthRecord pool recordId signInAccount =

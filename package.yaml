@@ -50,7 +50,6 @@ dependencies:
   - extra
   - either
   - transformers
-  - scientific
 
 library:
   source-dirs: src

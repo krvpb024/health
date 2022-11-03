@@ -116,13 +116,6 @@ packages:
       size: 738
   original:
     hackage: exceptions-0.10.5@sha256:b2c634a95ba2a68e0df3ae67d006f0dabb02edbe4dc77b321133551e308ca047,2832
-- completed:
-    hackage: scientific-0.3.7.0@sha256:517444c944dad9db8235d7b311d7b9a0839a519ee3178288b5a9606256e0c7d8,4840
-    pantry-tree:
-      sha256: 27d0f081a1b8243e2558a82776ab4725f3db131e69f042cc44a0d3987611ec01
-      size: 657
-  original:
-    hackage: scientific-0.3.7.0
 snapshots:
 - completed:
     sha256: a27a5761890ade44d7dd21a5f5f93c87e60b9c063655fff835d69dd1071474f0

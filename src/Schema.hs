@@ -14,9 +14,9 @@ module Schema where
 import Database.Beam
 import Data.Text.Lazy as TL
 import Data.Time
-import Data.Scientific
+import Data.Int
 
-data AccountT f = Account { _accountId       :: Columnar f Integer
+data AccountT f = Account { _accountId       :: Columnar f Int32
                           , _accountName     :: Columnar f TL.Text
                           , _accountPassword :: Columnar f TL.Text
                           } deriving (Generic, Beamable)
@@ -31,7 +31,7 @@ deriving instance Show AccountId
 deriving instance Eq AccountId
 
 instance Table AccountT where
-  data PrimaryKey AccountT f = AccountId (Columnar f Integer)
+  data PrimaryKey AccountT f = AccountId (Columnar f Int32)
       deriving (Generic, Beamable)
 
   primaryKey :: AccountT column -> PrimaryKey AccountT column
@@ -58,11 +58,11 @@ instance Table SessionT where
   primaryKey :: SessionT column -> PrimaryKey SessionT column
   primaryKey = SessionId . _sessionId
 
-data ProfileT f = Profile { _profileId         :: Columnar f Integer
+data ProfileT f = Profile { _profileId         :: Columnar f Int32
                           , _profileAccountId  :: PrimaryKey AccountT f
                           , _profileGender     :: Columnar f Bool
                           , _profileBirthDate  :: Columnar f Day
-                          , _profileInitHeight :: Columnar f Scientific
+                          , _profileHeight     :: Columnar f Double
                           } deriving (Generic, Beamable)
 
 type Profile = ProfileT Identity
@@ -75,18 +75,18 @@ deriving instance Show ProfileId
 deriving instance Eq ProfileId
 
 instance Table ProfileT where
-  data PrimaryKey ProfileT f = ProfileId (Columnar f Integer)
+  data PrimaryKey ProfileT f = ProfileId (Columnar f Int32)
       deriving (Generic, Beamable)
 
   primaryKey :: ProfileT column -> PrimaryKey ProfileT column
   primaryKey = ProfileId . _profileId
 
-data HealthRecordT f = HealthRecord { _healthRecordId                :: Columnar f Integer
+data HealthRecordT f = HealthRecord { _healthRecordId                :: Columnar f Int32
                                     , _healthRecordProfileId         :: PrimaryKey ProfileT f
-                                    , _healthRecordHeight            :: Columnar f Scientific
-                                    , _healthRecordWeight            :: Columnar f Scientific
-                                    , _healthRecordBodyFatPercentage :: Columnar f (Maybe Scientific)
-                                    , _healthRecordWaistlineCm       :: Columnar f (Maybe Scientific)
+                                    , _healthRecordHeight            :: Columnar f Double
+                                    , _healthRecordWeight            :: Columnar f Double
+                                    , _healthRecordBodyFatPercentage :: Columnar f (Maybe Double)
+                                    , _healthRecordWaistlineCm       :: Columnar f (Maybe Double)
                                     , _healthRecordDate              :: Columnar f Day
                                     , _healthRecordRecordAt          :: Columnar f LocalTime
                                     } deriving (Generic, Beamable)
@@ -98,7 +98,7 @@ deriving instance Show HealthRecord
 deriving instance Eq HealthRecord
 
 instance Table HealthRecordT where
-  data PrimaryKey HealthRecordT f = HealthRecordId (Columnar f Integer)
+  data PrimaryKey HealthRecordT f = HealthRecordId (Columnar f Int32)
       deriving (Generic, Beamable)
 
   primaryKey :: HealthRecordT column -> PrimaryKey HealthRecordT column

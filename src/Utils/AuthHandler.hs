@@ -25,12 +25,11 @@ import Text.Ginger
 import Data.Aeson
 import qualified Utils.TemplateHandler as TP
 import qualified Data.HashMap.Strict as HS
-import Utils.TemplateHandler
 
 type instance AuthServerData (AuthProtect "cookie-auth") = Maybe SignInAccount
 
 data SignInAccount = SignInAccount { sessionId :: Text
-                                   , accountId :: Integer
+                                   , accountId :: Int32
                                    , accountName :: Text
                                    } deriving (Show)
 

@@ -28,23 +28,23 @@ model session {
 // }
 
 model profile {
-  id            Int                    @id @default(autoincrement())
-  account       account                @relation(fields: [account_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  account_id    Int                    @unique
+  id            Int             @id @default(autoincrement())
+  account       account         @relation(fields: [account_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  account_id    Int             @unique
   gender        Boolean /// True -> Male, False -> Female
-  birth_date    DateTime               @db.Date
-  init_height   Unsupported("NUMERIC")
+  birth_date    DateTime        @db.Date
+  height        Float           @db.DoublePrecision
   health_record health_record[]
 }
 
 model health_record {
-  id                  Int                     @id @default(autoincrement())
-  profile             profile                 @relation(fields: [profile_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  id                  Int      @id @default(autoincrement())
+  profile             profile  @relation(fields: [profile_id], references: [id], onDelete: Cascade, onUpdate: Cascade)
   profile_id          Int
-  height              Unsupported("NUMERIC")
-  weight              Unsupported("NUMERIC")
-  body_fat_percentage Unsupported("NUMERIC")?
-  waistline_cm        Unsupported("NUMERIC")?
-  date                DateTime                @default(now()) @db.Date
-  record_at           DateTime                @default(now()) @db.Timestamptz
+  height              Float    @db.DoublePrecision
+  weight              Float    @db.DoublePrecision
+  body_fat_percentage Float?   @db.DoublePrecision
+  waistline_cm        Float?   @db.DoublePrecision
+  date                DateTime @default(now()) @db.Date
+  record_at           DateTime @default(now()) @db.Timestamptz
 }

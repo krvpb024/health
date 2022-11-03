@@ -17,7 +17,14 @@
     "declaration-property-value-disallowed-list": [
       {
         "display": [
-          "/(inline|block|inline-block|flex|inline-flex|grid|inline-grid|flow-root)/"
+          "inline",
+          "block",
+          "inline-block",
+          "flex",
+          "inline-flex",
+          "grid",
+          "inline-grid",
+          "flow-root"
         ]
       },
       {

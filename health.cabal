@@ -61,7 +61,6 @@ library
     , password
     , postgresql-simple
     , resource-pool
-    , scientific
     , servant
     , servant-server
     , text
@@ -103,7 +102,6 @@ executable health-exe
     , password
     , postgresql-simple
     , resource-pool
-    , scientific
     , servant
     , servant-server
     , text
@@ -149,7 +147,6 @@ test-suite health-test
     , password
     , postgresql-simple
     , resource-pool
-    , scientific
     , servant
     , servant-server
     , text
