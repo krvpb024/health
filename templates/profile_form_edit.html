@@ -15,30 +15,29 @@
           生日<span>（兒童、青少年、成人的標準不同）</span>
         </label>
         <input type="date" name="birthDate" id="input-birth-date" autocomplete="bday" required
-          value="{{ profileData.editBirthDate }}">
+          value="{{ profileData.birthDate }}">
 
         <fieldset>
           <legend>
             性別<span>（不同生理性別的標準不同）</span>
           </legend>
-
           {%- macro genderInput(gender, checked) -%}
-          {%- if (checked == True && gender == "male") || (checked == False && gender == "female") -%}
+          {%- if (checked == gender) || (checked == gender) -%}
           <input type="radio" name="gender" id="radio-gender-{{ gender }}" value="{{ gender }}" required checked>
           {%- else -%}
           <input type="radio" name="gender" id="radio-gender-{{ gender }}" value="{{ gender }}" required>
           {%- endif -%}
           {%- endmacro -%}
 
-          {{ genderInput("male", checked=profileData.editGender) }}
+          {{ genderInput("male", checked=profileData.gender) }}
           <label for="radio-gender-male">男</label>
 
-          {{ genderInput("female", checked=profileData.editGender) }}
+          {{ genderInput("female", checked=profileData.gender) }}
           <label for="radio-gender-female">女</label>
         </fieldset>
 
         <label for="height">身高</label>
-        <input type="number" name="initHeight" id="input-height" required value="{{ profileData.editHeight }}">
+        <input type="number" name="height" id="input-height" required value="{{ profileData.height }}">
 
         <button type="submit">送出</button>
       </form>

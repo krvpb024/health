@@ -6,15 +6,15 @@
 
   <dl>
     <dt>帳號：</dt>
-    <dl>{{ ctx.profileAccountName }}</dl>
+    <dl>{{ accountName }}</dl>
 
     <dt>性別：</dt>
-    <dl>{{ ctx.profileGender }}</dl>
+    <dl>{{ profileGender }}</dl>
 
     <dt>生日：</dt>
-    <dl>{{ ctx.profileBirthDate }}</dl>
+    <dl>{{ profileBirthDate }}</dl>
   </dl>
 
-  <a href="/profile/{{ ctx['profileId'] }}/form">編輯</a>
+  <a href="/profile/{{ profileId }}/form">編輯</a>
 </main>
 {% endblock %}

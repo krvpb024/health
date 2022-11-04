@@ -23,13 +23,11 @@ import Database.Beam.Postgres
 import Database.Beam
 import Data.Time
 import Data.Aeson
-import Text.Ginger
 import Data.Either.Combinators
 import qualified Data.Text.Lazy.Encoding as TLE
 import Data.Fixed
 import Web.FormUrlEncoded
 import Database.Beam.Backend.SQL.BeamExtensions
-import Data.ByteString.Lazy.UTF8 as BLU
 import Data.Int
 import Control.Exception
 
@@ -169,7 +167,7 @@ healthRecordServerT = healthRecordListGetHandler
               currentTime <- liftIO getZonedTime
               let context = HS.fromList [ ( "currentDate"
                                               , toJSON $ formatTime defaultTimeLocale "%F" currentTime )
-                                          , ( "initHeight"
+                                          , ( "height"
                                               , toJSON $ _profileHeight profile ) ]
               html <- TP.htmlHandler context "/health_record_form.html"
               respond $ WithStatus @200 $ html
@@ -303,19 +301,19 @@ healthRecordServerT = healthRecordListGetHandler
 
             Right healthRecord -> do
               pool <- asks getPool
-              liftIO $ updateHealthRecord pool putHealthRecordData
+              liftIO $ updateHealthRecord pool healthRecord putHealthRecordData
               red <- redirect ("/health_record" :: RedirectUrl)
               respond $ WithStatus @303 $ red
               where
-                    updateHealthRecord pool putHealthRecordData =
+                    updateHealthRecord pool healthRecord putHealthRecordData =
                       withResource pool $ \conn -> runBeamPostgres conn $ do
-                        runUpdate $ save (_healthHealthRecord healthDb) (healthRecord {
+                        runUpdate $ save (_healthHealthRecord healthDb) ( healthRecord {
                             _healthRecordHeight = postHeight putHealthRecordData
                           , _healthRecordWeight = postWeight putHealthRecordData
                           , _healthRecordBodyFatPercentage = postBodyFatPercentage putHealthRecordData
                           , _healthRecordWaistlineCm = postWaistlineCm putHealthRecordData
                           , _healthRecordDate = postDate putHealthRecordData
-                        })
+                        } )
 
             _ -> throw err500
 
