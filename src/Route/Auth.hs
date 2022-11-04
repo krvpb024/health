@@ -107,7 +107,7 @@ authServerT = (authSignUpGetHandler
                                                                             ] NoContent ) ] )
         authSignInPostHandler accountData = do
           pool <- asks getPool
-          currentTimestamp <- liftIO getZonedTime
+          currentTimestamp <- liftIO getCurrentTime
           account <- liftIO $ selectAccount pool accountData
           let authorizedAccount :: Either ServerError (AccountT Identity)
               authorizedAccount = isPasswordValid hashedInputPassword account
@@ -131,8 +131,7 @@ authServerT = (authSignUpGetHandler
                                                         , setCookieSecure   = True
                                                         , setCookieSameSite = Just sameSiteStrict
                                                         , setCookiePath     = Just "/"
-                                                        , setCookieExpires  = Just $ zonedTimeToUTC $
-                                                                              ZonedTime (_sessionExpireAt sid) timeZone
+                                                        , setCookieExpires  = Just $ _sessionExpireAt sid
                                                         }
                               NoContent
               respond $ WithStatus @303 $ redirect
@@ -170,14 +169,14 @@ authServerT = (authSignUpGetHandler
 
                   deleteExpiredSession :: Pool Connection
                                        -> Either ServerError (AccountT Identity)
-                                       -> ZonedTime
+                                       -> UTCTime
                                        -> IO ()
                   deleteExpiredSession _    (Left err)      _                = throw err
                   deleteExpiredSession pool (Right account) currentTimestamp = do
                     withResource pool $ \conn -> runBeamPostgres conn $
                       runDelete $ Database.Beam.delete (_healthSession healthDb) $
                       \session -> (_sessionAccountId session ==. val_ (primaryKey account)) &&.
-                                  (_sessionExpireAt session <=. val_ (zonedTimeToLocalTime currentTimestamp))
+                                  (_sessionExpireAt session <=. val_ currentTimestamp)
 
         authSignOutPostHandler:: (ToHttpApiData RedirectUrl, IsString RedirectUrl) =>
              Maybe SignInAccount -> ReaderHandler (Headers '[ Header "Location" RedirectUrl

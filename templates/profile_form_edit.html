@@ -1,0 +1,48 @@
+{% extends "layout.html" %}
+
+{%- block title -%}編輯個人檔案{%- endblock -%}
+
+{%- block content -%}
+<main>
+  <section aria-labelledby="base-title">
+    <h1 id="base-title">編輯個人檔案</h1>
+
+    <section id="profile-form-section" aria-labelledby="profile-form-title">
+      <h2 id="profile-form-title">個人資料</h2>
+
+      <form action="/profile/{{ profileId }}/put" method="post" aria-labelledby="profile-form-title">
+        <label for="birth-date">
+          生日<span>（兒童、青少年、成人的標準不同）</span>
+        </label>
+        <input type="date" name="birthDate" id="input-birth-date" autocomplete="bday" required
+          value="{{ profileData.editBirthDate }}">
+
+        <fieldset>
+          <legend>
+            性別<span>（不同生理性別的標準不同）</span>
+          </legend>
+
+          {%- macro genderInput(gender, checked) -%}
+          {%- if checked -%}
+          <input type="radio" name="gender" id="radio-gender-{{ gender }}" value="{{ gender }}" required checked>
+          {%- else -%}
+          <input type="radio" name="gender" id="radio-gender-{{ gender }}" value="{{ gender }}" required>
+          {%- endif -%}
+          {%- endmacro -%}
+
+          {{ genderInput("male", profileData.editGender) }}
+          <label for="radio-gender-male">男</label>
+
+          {{ genderInput("female", profileData.editGender) }}
+          <label for="radio-gender-female">女</label>
+        </fieldset>
+
+        <label for="height">身高</label>
+        <input type="number" name="initHeight" id="input-height" required value="{{ profileData.editHeight }}">
+
+        <button type="submit">送出</button>
+      </form>
+    </section>
+  </section>
+</main>
+{%- endblock -%}

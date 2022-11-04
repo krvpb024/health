@@ -34,44 +34,39 @@ import Data.Int
 import Control.Exception
 
 type HealthRecordAPI = "health_record" :> ( AuthProtect "cookie-auth"
-                                              :> UVerb 'GET '[HTML] [ WithStatus 401 RawHtml
+                                              :> UVerb 'GET '[HTML] [ WithStatus 403 RawHtml
                                                                     , WithStatus 200 RawHtml
                                                                     ]
                                        :<|> AuthProtect "cookie-auth"
                                               :> "form"
-                                              :> UVerb 'GET '[HTML] [ WithStatus 401 RawHtml
-                                                                    , WithStatus 403 RawHtml
+                                              :> UVerb 'GET '[HTML] [ WithStatus 403 RawHtml
                                                                     , WithStatus 200 RawHtml
                                                                     ]
                                        :<|> AuthProtect "cookie-auth"
                                               :> ReqBody '[FormUrlEncoded] PostHealthRecordData
-                                              :> UVerb 'POST '[HTML] [ WithStatus 401 RawHtml
-                                                                     , WithStatus 403 RawHtml
+                                              :> UVerb 'POST '[HTML] [ WithStatus 403 RawHtml
                                                                      , WithStatus 303 (Headers '[ Header "Location" RedirectUrl] NoContent )
                                                                      ]
                                        :<|> AuthProtect "cookie-auth"
                                               :> Capture "recordId" Int32
                                               :> "delete"
-                                              :> UVerb 'POST '[HTML] [ WithStatus 401 RawHtml
+                                              :> UVerb 'POST '[HTML] [ WithStatus 403 RawHtml
                                                                      , WithStatus 404 RawHtml
-                                                                     , WithStatus 403 RawHtml
                                                                      , WithStatus 303 (Headers '[ Header "Location" RedirectUrl] NoContent )
                                                                      ]
                                        :<|> AuthProtect "cookie-auth"
                                               :> Capture "recordId" Int32
                                               :> "form"
-                                              :> UVerb 'GET '[HTML] [ WithStatus 401 RawHtml
+                                              :> UVerb 'GET '[HTML] [ WithStatus 403 RawHtml
                                                                     , WithStatus 404 RawHtml
-                                                                    , WithStatus 403 RawHtml
                                                                     , WithStatus 200 RawHtml
                                                                     ]
                                        :<|> AuthProtect "cookie-auth"
                                               :> Capture "recordId" Int32
                                               :> "put"
                                               :> ReqBody '[FormUrlEncoded] PostHealthRecordData
-                                              :> UVerb 'POST '[HTML] [ WithStatus 401 RawHtml
+                                              :> UVerb 'POST '[HTML] [ WithStatus 403 RawHtml
                                                                      , WithStatus 404 RawHtml
-                                                                     , WithStatus 403 RawHtml
                                                                      , WithStatus 303 (Headers '[ Header "Location" RedirectUrl] NoContent )
                                                                      ]
                                           )
@@ -95,33 +90,29 @@ data PostHealthRecordData = PostHealthRecordData {
 } deriving (Eq, Show, Generic, ToJSON, FromJSON, FromForm)
 
 data HealthRecordWithComputedValue = HealthRecordWithComputedValue {
-      recordId          :: Int32
-    , height            :: Double
-    , weight            :: Double
-    , bmi               :: Centi
-    , bodyFatPercentage :: Maybe Double
-    , waistlineCm       :: Maybe Double
-    , recordDate        :: Day
-    , recordAt          :: String
-  } deriving (Eq, Show, Generic, ToJSON, FromJSON)
+    recordId          :: Int32
+  , height            :: Double
+  , weight            :: Double
+  , bmi               :: Fixed E1
+  , bodyFatPercentage :: Maybe Double
+  , waistlineCm       :: Maybe Double
+  , recordDate        :: Day
+  , recordAt          :: String
+} deriving (Eq, Show, Generic, ToJSON, FromJSON)
 
 healthRecordServerT :: ServerT HealthRecordAPI ReaderHandler
 healthRecordServerT = healthRecordListGetHandler
-                 :<|> healthRecordPostFormHandler
+                 :<|> healthRecordGetCreateFormHandler
                  :<|> healthRecordPostHandler
                  :<|> healthRecordDeleteHandler
-                 :<|> healthRecordPutFormHandler
+                 :<|> healthRecordGetEditFormHandler
                  :<|> healthRecordPutHandler
 
   where
         healthRecordListGetHandler :: Maybe SignInAccount
-                                   -> ReaderHandler ( Union '[ WithStatus 401 RawHtml
+                                   -> ReaderHandler ( Union '[ WithStatus 403 RawHtml
                                                              , WithStatus 200 RawHtml ] )
-        healthRecordListGetHandler Nothing = do
-          html <- TP.htmlHandler context "/sign_in.html"
-          respond $ WithStatus @401 $ html
-          where
-                context = HS.fromList [ authFailHandlerMessage ]
+        healthRecordListGetHandler Nothing = respond =<< liftIO authFailToSignInView
         healthRecordListGetHandler (Just account) = do
           pool <- asks getPool
           joinedHealthRecordList <- liftIO $ selectHealthRecordList pool account
@@ -149,7 +140,7 @@ healthRecordServerT = healthRecordListGetHandler
                       recordId = _healthRecordId healthRecord
                     , height = _healthRecordHeight healthRecord
                     , weight = _healthRecordWeight healthRecord
-                    , bmi = realToFrac bmiValue :: Centi
+                    , bmi = realToFrac bmiValue :: Fixed E1
                     , bodyFatPercentage = _healthRecordBodyFatPercentage healthRecord
                     , waistlineCm = _healthRecordWaistlineCm healthRecord
                     , recordDate = _healthRecordDate healthRecord
@@ -162,16 +153,11 @@ healthRecordServerT = healthRecordListGetHandler
                         h = _healthRecordHeight healthRecord / 100
                         bmiValue = w / h / h :: Double
 
-        healthRecordPostFormHandler :: Maybe SignInAccount
-                                    -> ReaderHandler ( Union '[ WithStatus 401 RawHtml
-                                                              , WithStatus 403 RawHtml
+        healthRecordGetCreateFormHandler :: Maybe SignInAccount
+                                    -> ReaderHandler ( Union '[ WithStatus 403 RawHtml
                                                               , WithStatus 200 RawHtml ] )
-        healthRecordPostFormHandler Nothing = do
-          html <- TP.htmlHandler context "/sign_in.html"
-          respond $ WithStatus @401 $ html
-          where
-                context = HS.fromList [ authFailHandlerMessage ]
-        healthRecordPostFormHandler (Just account) = do
+        healthRecordGetCreateFormHandler Nothing = respond =<< liftIO authFailToSignInView
+        healthRecordGetCreateFormHandler (Just account) = do
           pool <- asks getPool
           profile <- liftIO $ selectProfile pool account
           case profile of
@@ -190,14 +176,9 @@ healthRecordServerT = healthRecordListGetHandler
 
         healthRecordPostHandler :: Maybe SignInAccount
                                 -> PostHealthRecordData
-                                -> ReaderHandler ( Union '[ WithStatus 401 RawHtml
-                                                          , WithStatus 403 RawHtml
-                                                          , WithStatus 303 (Headers '[ Header "Location" RedirectUrl] NoContent ) ] )
-        healthRecordPostHandler Nothing _ = do
-          html <- TP.htmlHandler context "/sign_in.html"
-          respond $ WithStatus @401 $ html
-          where
-                context = HS.fromList [ authFailHandlerMessage ]
+                                -> ReaderHandler ( Union '[ WithStatus 403 RawHtml
+                                                          , WithStatus 303 ( Headers '[ Header "Location" RedirectUrl] NoContent ) ] )
+        healthRecordPostHandler Nothing _ = respond =<< liftIO authFailToSignInView
         healthRecordPostHandler (Just account) postHealthRecordData = do
           pool <- asks getPool
           profile <- liftIO $ selectProfile pool account
@@ -235,14 +216,10 @@ healthRecordServerT = healthRecordListGetHandler
 
         healthRecordDeleteHandler :: Maybe SignInAccount
                                   -> Int32
-                                  -> ReaderHandler ( Union '[ WithStatus 401 RawHtml
+                                  -> ReaderHandler ( Union '[ WithStatus 403 RawHtml
                                                             , WithStatus 404 RawHtml
-                                                            , WithStatus 403 RawHtml
                                                             , WithStatus 303 (Headers '[ Header "Location" RedirectUrl] NoContent ) ] )
-        healthRecordDeleteHandler Nothing _ = do
-          html <- TP.htmlHandler context "/sign_in.html"
-          respond $ WithStatus @401 $ html
-          where context = HS.fromList [ authFailHandlerMessage ]
+        healthRecordDeleteHandler Nothing _ = respond =<< liftIO authFailToSignInView
         healthRecordDeleteHandler (Just account) recordId = do
           pool <- asks getPool
           record <- liftIO $ selectHealthRecord pool recordId account
@@ -253,13 +230,11 @@ healthRecordServerT = healthRecordListGetHandler
                 ServerError 404 _ body _ -> do
                   html <- TP.htmlHandler context "/empty.html"
                   respond $ WithStatus @404 $ html
-                  where context :: HS.HashMap VarName Value
-                        context = HS.fromList [( "globalMsgs", toJSON [TLE.decodeUtf8 body] )]
+                  where context = HS.fromList [( "globalMsgs", toJSON [TLE.decodeUtf8 body] )]
                 ServerError 403 _ body _ -> do
                   html <- TP.htmlHandler context "/empty.html"
                   respond $ WithStatus @403 $ html
-                  where context :: HS.HashMap VarName Value
-                        context = HS.fromList [( "globalMsgs", toJSON [TLE.decodeUtf8 body] )]
+                  where context = HS.fromList [( "globalMsgs", toJSON [TLE.decodeUtf8 body] )]
                 _ -> throw err
             Right record -> liftIO $ do
               withResource pool $ \conn -> runBeamPostgres conn $
@@ -268,17 +243,13 @@ healthRecordServerT = healthRecordListGetHandler
               red <- redirect ("/health_record" :: RedirectUrl)
               respond $ WithStatus @303 $ red
 
-        healthRecordPutFormHandler ::Maybe SignInAccount
+        healthRecordGetEditFormHandler ::Maybe SignInAccount
                                   -> Int32
-                                  -> ReaderHandler ( Union '[ WithStatus 401 RawHtml
+                                  -> ReaderHandler ( Union '[ WithStatus 403 RawHtml
                                                             , WithStatus 404 RawHtml
-                                                            , WithStatus 403 RawHtml
                                                             , WithStatus 200 RawHtml ] )
-        healthRecordPutFormHandler Nothing _ = do
-          html <- TP.htmlHandler context "/sign_in.html"
-          respond $ WithStatus @401 $ html
-          where context = HS.fromList [ authFailHandlerMessage ]
-        healthRecordPutFormHandler (Just account) recordId = do
+        healthRecordGetEditFormHandler Nothing _ = respond =<< liftIO authFailToSignInView
+        healthRecordGetEditFormHandler (Just account) recordId = do
           pool <- asks getPool
           dbResponse <- liftIO $ selectHealthRecord pool recordId account
           let authorizedRecord = dbResponse >>= checkRecordPermission account
@@ -296,11 +267,11 @@ healthRecordServerT = healthRecordListGetHandler
             Right record -> do
               let context = HS.fromList [ ( "healthRecordId", toJSON $ _healthRecordId record)
                                         , ( "healthRecord", toJSON PostHealthRecordData {
-                                                                     postHeight = _healthRecordHeight record
-                                                                   , postWeight = _healthRecordWeight record
-                                                                   , postBodyFatPercentage = _healthRecordBodyFatPercentage record
-                                                                   , postWaistlineCm = _healthRecordWaistlineCm record
-                                                                   , postDate = _healthRecordDate record
+                                                                      postHeight = _healthRecordHeight record
+                                                                    , postWeight = _healthRecordWeight record
+                                                                    , postBodyFatPercentage = _healthRecordBodyFatPercentage record
+                                                                    , postWaistlineCm = _healthRecordWaistlineCm record
+                                                                    , postDate = _healthRecordDate record
                                                                    } )
                                         ]
               html <- TP.htmlHandler context "/health_record_form_edit.html"
@@ -311,15 +282,10 @@ healthRecordServerT = healthRecordListGetHandler
         healthRecordPutHandler :: Maybe SignInAccount
                                -> Int32
                                -> PostHealthRecordData
-                               -> ReaderHandler ( Union '[ WithStatus 401 RawHtml
+                               -> ReaderHandler ( Union '[ WithStatus 403 RawHtml
                                                          , WithStatus 404 RawHtml
-                                                         , WithStatus 403 RawHtml
                                                          , WithStatus 303 (Headers '[ Header "Location" RedirectUrl] NoContent ) ] )
-        healthRecordPutHandler Nothing _ _ = do
-          html <- TP.htmlHandler context "/sign_in.html"
-          respond $ WithStatus @401 $ html
-          where
-                context = HS.fromList [ authFailHandlerMessage ]
+        healthRecordPutHandler Nothing _ _ = respond =<< liftIO authFailToSignInView
         healthRecordPutHandler (Just account) recordId putHealthRecordData = do
           pool <- asks getPool
           record <- liftIO $ selectHealthRecord pool recordId account

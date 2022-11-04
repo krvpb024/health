@@ -39,7 +39,7 @@ instance Table AccountT where
 
 data SessionT f = Session { _sessionId        :: Columnar f TL.Text
                           , _sessionAccountId :: PrimaryKey AccountT f
-                          , _sessionExpireAt  :: Columnar f LocalTime
+                          , _sessionExpireAt  :: Columnar f UTCTime
                           } deriving (Generic, Beamable)
 
 type Session = SessionT Identity
@@ -88,14 +88,13 @@ data HealthRecordT f = HealthRecord { _healthRecordId                :: Columnar
                                     , _healthRecordBodyFatPercentage :: Columnar f (Maybe Double)
                                     , _healthRecordWaistlineCm       :: Columnar f (Maybe Double)
                                     , _healthRecordDate              :: Columnar f Day
-                                    , _healthRecordRecordAt          :: Columnar f LocalTime
+                                    , _healthRecordRecordAt          :: Columnar f UTCTime
                                     } deriving (Generic, Beamable)
 
 type HealthRecord = HealthRecordT Identity
 type HealthRecordId = PrimaryKey HealthRecordT Identity
 
 deriving instance Show HealthRecord
-deriving instance Eq HealthRecord
 
 instance Table HealthRecordT where
   data PrimaryKey HealthRecordT f = HealthRecordId (Columnar f Int32)

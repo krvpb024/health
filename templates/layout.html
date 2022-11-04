@@ -4,28 +4,28 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>{% block title %}Document{% endblock %}</title>
+  <title>{%- block title -%}Document{%- endblock -%}</title>
 
   <link rel="stylesheet" href="./static/index.css">
-  {% block head %}
-  {% endblock %}
+  {%- block head -%}
+  {%- endblock -%}
 </head>
 
 <body>
   {%- if globalMsgs -%}
   <ul role="alert">
-    {% for msg in globalMsgs -%}
+    {%- for msg in globalMsgs -%}
     <li>{{ msg }}</li>
-    {%- endfor %}
+    {%- endfor -%}
   </ul>
-  {% endif %}
+  {%- endif -%}
 
-  {% block content %}
-  {% endblock %}
+  {%- block content -%}
+  {%- endblock -%}
 
   <script src="./static/index.js" type="module"></script>
-  {% block script %}
-  {% endblock %}
+  {%- block script -%}
+  {%- endblock -%}
 </body>
 
 </html>
