@@ -111,11 +111,11 @@ profileServerT = profileGetHandler
           case maybeProfile of
             Left err -> do
               html <- TP.htmlHandler context "/empty.html"
-              respond $ WithStatus @404 $ html
+              respond $ WithStatus @404 html
               where context = HS.fromList [( "globalMsgs", toJSON [TLE.decodeUtf8 $ errBody err] )]
             Right profile -> do
               html <- TP.htmlHandler context "/profile.html"
-              respond $ WithStatus @200 $ html
+              respond $ WithStatus @200 html
               where context = HS.fromList [ ( "accountName", toJSON $ accountName account )
                                           , ( "profileId", toJSON $ _profileId profile )
                                           , ( "profileGender", toJSON $ bool ("女" :: TL.Text) "男" $ _profileGender profile )
@@ -128,7 +128,7 @@ profileServerT = profileGetHandler
         profileGetCreateFormHandler Nothing        = respond =<< liftIO authFailToSignInView
         profileGetCreateFormHandler (Just account) = do
           html <- TP.htmlHandler mempty "/profile_form.html"
-          respond $ WithStatus @200 $ html
+          respond $ WithStatus @200 html
 
         profilePostHandler :: Maybe SignInAccount
                            -> ProfilePostData
@@ -140,7 +140,7 @@ profileServerT = profileGetHandler
           pool <- asks getPool
           profile <- liftIO $ insertProfile pool account profileFormData
           red <- redirect ("/auth/sign_in" :: RedirectUrl)
-          respond $ WithStatus @303 $ red
+          respond $ WithStatus @303 red
 
             where
                   insertProfile :: Pool Connection -> SignInAccount -> ProfilePostData -> IO Profile
@@ -169,15 +169,15 @@ profileServerT = profileGetHandler
           case authorizedProfile of
             Left (ServerError 404 _ errBody _) -> do
               html <- TP.htmlHandler context "/empty.html"
-              respond $ WithStatus @404 $ html
+              respond $ WithStatus @404 html
               where context = HS.fromList [( "globalMsgs", toJSON [TLE.decodeUtf8 errBody] )]
             Left (ServerError 403 _ errBody _) -> do
               html <- TP.htmlHandler context "/empty.html"
-              respond $ WithStatus @403 $ html
+              respond $ WithStatus @403 html
               where context = HS.fromList [( "globalMsgs", toJSON [TLE.decodeUtf8 errBody] )]
             Right profile -> do
               html <- TP.htmlHandler context "/profile_form_edit.html"
-              respond $ WithStatus @200 $ html
+              respond $ WithStatus @200 html
               where context = HS.fromList [ ( "profileId", toJSON $ _profileId profile )
                                           , ( "profileData", toJSON $ ProfilePostData (_profileBirthDate profile)
                                                                                       (bool "female" "male" $ _profileGender profile)

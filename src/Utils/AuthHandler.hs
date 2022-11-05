@@ -87,5 +87,5 @@ genAuthServerContext env = authHandler env :. EmptyContext
 authFailToSignInView :: IO (WithStatus 403 RawHtml)
 authFailToSignInView = do
   html <- TP.htmlHandler (HS.fromList [ message ]) "/sign_in.html"
-  return $ WithStatus @403 $ html
+  return $ WithStatus @403 html
   where message = ( "globalMsgs", toJSON ["You Need to Sign In First." :: Text] )

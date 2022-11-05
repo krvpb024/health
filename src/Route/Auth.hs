@@ -116,7 +116,7 @@ authServerT = (authSignUpGetHandler
           newSid <- liftIO $ genNewSid pool authorizedAccount
           case newSid of
             Left  err -> do html <- TP.htmlHandler context "/sign_in.html"
-                            respond $ WithStatus @401 $ html
+                            respond $ WithStatus @401 html
                               where context :: HashMap VarName Value
                                     context = HS.fromList [ ("globalMsgs", toJSON [TLE.decodeUtf8 (errBody err)]) ]
             Right sid -> do
@@ -134,7 +134,7 @@ authServerT = (authSignUpGetHandler
                                                         , setCookieExpires  = Just $ _sessionExpireAt sid
                                                         }
                               NoContent
-              respond $ WithStatus @303 $ redirect
+              respond $ WithStatus @303 redirect
 
             where selectAccount :: Pool Connection
                                 -> AccountData

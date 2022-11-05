@@ -85,7 +85,19 @@ data PostHealthRecordData = PostHealthRecordData {
   , postBodyFatPercentage :: Maybe Double
   , postWaistlineCm       :: Maybe Double
   , postDate              :: Day
-} deriving (Eq, Show, Generic, ToJSON, FromJSON, FromForm)
+} deriving (Eq, Show, Generic, ToJSON, FromJSON)
+
+instance FromForm PostHealthRecordData where
+  fromForm f = PostHealthRecordData
+    <$> parseUnique "postHeight" f
+    <*> parseUnique "postWeight" f
+    <*> (optionalDoubleToMaybe <$> parseUnique "postBodyFatPercentage" f)
+    <*> (optionalDoubleToMaybe <$> parseUnique "postWaistlineCm" f)
+    <*> parseUnique "postDate" f
+
+    where optionalDoubleToMaybe :: String -> Maybe Double
+          optionalDoubleToMaybe "" = Nothing
+          optionalDoubleToMaybe s = Just $ read s
 
 data HealthRecordWithComputedValue = HealthRecordWithComputedValue {
     recordId          :: Int32
@@ -118,7 +130,7 @@ healthRecordServerT = healthRecordListGetHandler
               context = HS.fromList [ ( "healthRecordList"
                                       , toJSON (healthRecordWithComputedValueList :: [HealthRecordWithComputedValue])) ]
           html <- TP.htmlHandler context "/health_record_list.html"
-          respond $ WithStatus @200 $ html
+          respond $ WithStatus @200 html
           where
                 selectHealthRecordList :: Pool Connection
                                        -> SignInAccount
@@ -161,7 +173,7 @@ healthRecordServerT = healthRecordListGetHandler
           case profile of
             Left err -> do
               html <- TP.htmlHandler context "/sign_in.html"
-              respond $ WithStatus @403 $ html
+              respond $ WithStatus @403 html
               where context = HS.fromList [( "globalMsgs", toJSON [TLE.decodeUtf8 $ errBody err] )]
             Right profile -> do
               currentTime <- liftIO getZonedTime
@@ -170,7 +182,7 @@ healthRecordServerT = healthRecordListGetHandler
                                           , ( "height"
                                               , toJSON $ _profileHeight profile ) ]
               html <- TP.htmlHandler context "/health_record_form.html"
-              respond $ WithStatus @200 $ html
+              respond $ WithStatus @200 html
 
         healthRecordPostHandler :: Maybe SignInAccount
                                 -> PostHealthRecordData
@@ -183,14 +195,13 @@ healthRecordServerT = healthRecordListGetHandler
           case profile of
             Left err -> do
               html <- TP.htmlHandler context "/sign_in.html"
-              respond $ WithStatus @403 $ html
+              respond $ WithStatus @403 html
               where context = HS.fromList [( "globalMsgs", toJSON [TLE.decodeUtf8 $ errBody err] )]
 
             Right profile -> do
-              liftIO $ print postHealthRecordData
               healthRecordId <- liftIO $ insertHealthRecord pool postHealthRecordData profile
               red <- redirect ("/health_record" :: RedirectUrl)
-              respond $ WithStatus @303 $ red
+              respond $ WithStatus @303 red
 
             where
                   insertHealthRecord :: Pool Connection
@@ -227,11 +238,11 @@ healthRecordServerT = healthRecordListGetHandler
               case err of
                 ServerError 404 _ body _ -> do
                   html <- TP.htmlHandler context "/empty.html"
-                  respond $ WithStatus @404 $ html
+                  respond $ WithStatus @404 html
                   where context = HS.fromList [( "globalMsgs", toJSON [TLE.decodeUtf8 body] )]
                 ServerError 403 _ body _ -> do
                   html <- TP.htmlHandler context "/empty.html"
-                  respond $ WithStatus @403 $ html
+                  respond $ WithStatus @403 html
                   where context = HS.fromList [( "globalMsgs", toJSON [TLE.decodeUtf8 body] )]
                 _ -> throw err
             Right record -> liftIO $ do
@@ -239,7 +250,7 @@ healthRecordServerT = healthRecordListGetHandler
                 runDelete $ delete (_healthHealthRecord healthDb)
                                    (\r -> _healthRecordId r ==. val_ (_healthRecordId record))
               red <- redirect ("/health_record" :: RedirectUrl)
-              respond $ WithStatus @303 $ red
+              respond $ WithStatus @303 red
 
         healthRecordGetEditFormHandler ::Maybe SignInAccount
                                   -> Int32
@@ -254,12 +265,12 @@ healthRecordServerT = healthRecordListGetHandler
           case authorizedRecord of
             Left (ServerError 404 _ body _) -> do
               html <- TP.htmlHandler context "/empty.html"
-              respond $ WithStatus @404 $ html
+              respond $ WithStatus @404 html
               where context = HS.fromList [( "globalMsgs", toJSON [TLE.decodeUtf8 body] )]
 
             Left (ServerError 403 _ body _) -> do
               html <- TP.htmlHandler context "/empty.html"
-              respond $ WithStatus @403 $ html
+              respond $ WithStatus @403 html
               where context = HS.fromList [( "globalMsgs", toJSON [TLE.decodeUtf8 body] )]
 
             Right record -> do
@@ -273,7 +284,7 @@ healthRecordServerT = healthRecordListGetHandler
                                                                    } )
                                         ]
               html <- TP.htmlHandler context "/health_record_form_edit.html"
-              respond $ WithStatus @200 $ html
+              respond $ WithStatus @200 html
 
             _ -> throw err500
 
@@ -291,19 +302,19 @@ healthRecordServerT = healthRecordListGetHandler
           case authorizedRecord of
             Left (ServerError 404 _ body _) -> do
               html <- TP.htmlHandler context "/empty.html"
-              respond $ WithStatus @404 $ html
+              respond $ WithStatus @404 html
               where context = HS.fromList [( "globalMsgs", toJSON [TLE.decodeUtf8 body] )]
 
             Left (ServerError 403 _ body _) -> do
               html <- TP.htmlHandler context "/empty.html"
-              respond $ WithStatus @403 $ html
+              respond $ WithStatus @403 html
               where context = HS.fromList [( "globalMsgs", toJSON [TLE.decodeUtf8 body] )]
 
             Right healthRecord -> do
               pool <- asks getPool
               liftIO $ updateHealthRecord pool healthRecord putHealthRecordData
               red <- redirect ("/health_record" :: RedirectUrl)
-              respond $ WithStatus @303 $ red
+              respond $ WithStatus @303 red
               where
                     updateHealthRecord pool healthRecord putHealthRecordData =
                       withResource pool $ \conn -> runBeamPostgres conn $ do
@@ -326,11 +337,9 @@ recordErr403 = err403 { errBody = TLE.encodeUtf8 "你沒有權限修改這筆記
 selectProfile :: Pool Connection -> SignInAccount -> IO (Either ServerError Profile)
 selectProfile pool signInAccount = do
   profile <- withResource pool $ \conn -> runBeamPostgres conn $
-    runSelectReturningOne $ select $ do
-      account <- all_ $ _healthAccount healthDb
-      profile <- join_ (_healthProfile healthDb) $ (primaryKey account ==.) . _profileAccountId
-      guard_ $ _accountId account ==. val_ (accountId signInAccount)
-      pure profile
+    runSelectReturningOne $ select $
+      filter_ (((AccountId . val_ . accountId) signInAccount ==.) . _profileAccountId) $
+      all_ $ _healthProfile healthDb
   pure $ maybeToRight err403 { errBody = TLE.encodeUtf8 "你必須先建立個人檔案"} profile
 
 selectHealthRecord :: Pool Connection
