@@ -48,7 +48,7 @@ type ProfileAPI =  "profile" :> ( AuthProtect "cookie-auth"
                                                           , WithStatus 200 RawHtml
                                                           ]
                              :<|> AuthProtect "cookie-auth"
-                                    :> "form"
+                                    :> "create"
                                     :> UVerb 'GET '[HTML] [ WithStatus 403 RawHtml
                                                           , WithStatus 200 RawHtml
                                                           ]
@@ -60,7 +60,7 @@ type ProfileAPI =  "profile" :> ( AuthProtect "cookie-auth"
                                                            ]
                              :<|> AuthProtect "cookie-auth"
                                     :> Capture "profileId" Int32
-                                    :> "form"
+                                    :> "edit"
                                     :> UVerb 'GET '[HTML] [ WithStatus 403 RawHtml
                                                           , WithStatus 404 RawHtml
                                                           , WithStatus 200 RawHtml

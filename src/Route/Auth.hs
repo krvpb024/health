@@ -54,13 +54,13 @@ type AuthAPI = "auth" :> ("sign_up" :> ( Get '[HTML] RawHtml
                                           :> Verb 'POST 303 '[HTML] ( Headers '[ Header "Location" RedirectUrl
                                                                                , Header "Set-Cookie" SetCookie
                                                                                ] NoContent )
-                     :<|> "change_password" :> "form"
+                     :<|> "password" :> "edit"
                         :> AuthProtect "cookie-auth"
                         :> UVerb 'GET '[HTML] [ WithStatus 403 RawHtml
                                               , WithStatus 404 RawHtml
                                               , WithStatus 200 RawHtml
                                               ]
-                     :<|> "change_password"
+                     :<|> "password" :> "put"
                         :> AuthProtect "cookie-auth"
                         :> ReqBody '[FormUrlEncoded] ChangePasswordData
                         :> UVerb 'POST '[HTML] [ WithStatus 403 RawHtml
