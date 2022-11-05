@@ -70,10 +70,10 @@ type ProfileAPI =  "profile" :> ( AuthProtect "cookie-auth"
                                     :> "put"
                                     :> ReqBody '[FormUrlEncoded] ProfilePostData
                                     :> UVerb 'POST '[HTML] [ WithStatus 403 RawHtml
-                                                          , WithStatus 404 RawHtml
-                                                          , WithStatus 303 ( Headers '[ Header "Location" RedirectUrl
-                                                                                      ] NoContent )
-                                                          ]
+                                                           , WithStatus 404 RawHtml
+                                                           , WithStatus 303 ( Headers '[ Header "Location" RedirectUrl
+                                                                                       ] NoContent )
+                                                           ]
                                 )
 
 data ProfilePostData = ProfilePostData {
@@ -109,23 +109,18 @@ profileServerT = profileGetHandler
           pool <- asks getPool
           maybeProfile <- liftIO $ selectProfile pool account
           case maybeProfile of
-            Nothing -> do html <- TP.htmlHandler context "/profile_form.html"
-                          respond $ WithStatus @404 $ html
-              where context = HS.fromList [ ( "globalMsgs"
-                                            , toJSON ["Haven't created an account." :: TL.Text] ) ]
-            Just profile -> do html <- TP.htmlHandler context "/profile.html"
-                               respond $ WithStatus @200 $ html
+            Left err -> do
+              html <- TP.htmlHandler context "/empty.html"
+              respond $ WithStatus @404 $ html
+              where context = HS.fromList [( "globalMsgs", toJSON [TLE.decodeUtf8 $ errBody err] )]
+            Right profile -> do
+              html <- TP.htmlHandler context "/profile.html"
+              respond $ WithStatus @200 $ html
               where context = HS.fromList [ ( "accountName", toJSON $ accountName account )
                                           , ( "profileId", toJSON $ _profileId profile )
                                           , ( "profileGender", toJSON $ bool ("女" :: TL.Text) "男" $ _profileGender profile )
                                           , ( "profileBirthDate", toJSON $ _profileBirthDate profile )
                                           ]
-          where
-                selectProfile pool account =
-                  withResource pool $ \conn -> runBeamPostgres conn $
-                  runSelectReturningOne $ select $
-                  filter_ (((AccountId . val_ . accountId) account ==.) . _profileAccountId) $
-                  all_ $ _healthProfile healthDb
 
         profileGetCreateFormHandler :: Maybe SignInAccount
                                     -> ReaderHandler ( Union '[ WithStatus 403 RawHtml
@@ -205,16 +200,16 @@ profileServerT = profileGetHandler
           case authorizedProfile of
             Left (ServerError 404 _ errBody _) -> do
               html <- TP.htmlHandler context "/empty.html"
-              respond $ WithStatus @404 $ html
+              respond $ WithStatus @404 html
               where context = HS.fromList [( "globalMsgs", toJSON [TLE.decodeUtf8 errBody] )]
             Left (ServerError 403 _ errBody _) -> do
               html <- TP.htmlHandler context "/empty.html"
-              respond $ WithStatus @403 $ html
+              respond $ WithStatus @403 html
               where context = HS.fromList [( "globalMsgs", toJSON [TLE.decodeUtf8 errBody] )]
             Right profile -> do
               liftIO $ updateProfile pool profile profilePutData
               red <- redirect ("/profile" :: RedirectUrl)
-              respond $ WithStatus @303 $ red
+              respond $ WithStatus @303 red
               where
                     updateProfile pool profile profilePutData =
                       withResource pool $ \conn -> runBeamPostgres conn $ do
