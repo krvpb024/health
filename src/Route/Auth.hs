@@ -40,11 +40,6 @@ import Utils.TemplateHandler as TP
 import Data.HashMap.Strict as HS
 import Text.Ginger
 
-data AccountData = AccountData { name     :: TL.Text
-                               , password :: TL.Text
-                               } deriving (Eq, Show, Generic, ToJSON, FromJSON)
-instance FromForm AccountData
-
 type AuthAPI = "auth" :> ("sign_up" :> ( Get '[HTML] RawHtml
                                     :<|> ReqBody '[FormUrlEncoded] AccountData :> PostRedirect 303 RedirectUrl
                                        )
@@ -59,7 +54,30 @@ type AuthAPI = "auth" :> ("sign_up" :> ( Get '[HTML] RawHtml
                                           :> Verb 'POST 303 '[HTML] ( Headers '[ Header "Location" RedirectUrl
                                                                                , Header "Set-Cookie" SetCookie
                                                                                ] NoContent )
+                     :<|> "change_password" :> "form"
+                        :> AuthProtect "cookie-auth"
+                        :> UVerb 'GET '[HTML] [ WithStatus 403 RawHtml
+                                              , WithStatus 404 RawHtml
+                                              , WithStatus 200 RawHtml
+                                              ]
+                     :<|> "change_password"
+                        :> AuthProtect "cookie-auth"
+                        :> ReqBody '[FormUrlEncoded] ChangePasswordData
+                        :> UVerb 'POST '[HTML] [ WithStatus 403 RawHtml
+                                               , WithStatus 401 RawHtml
+                                               , WithStatus 303 (Headers '[ Header "Location" RedirectUrl] NoContent )
+                                               ]
                          )
+
+data AccountData = AccountData { name     :: TL.Text
+                               , password :: TL.Text
+                               } deriving (Eq, Show, Generic, ToJSON, FromJSON, FromForm)
+
+data ChangePasswordData = ChangePasswordData {
+    originPassword  :: TL.Text
+  , newPassword     :: TL.Text
+  , confirmPassword :: TL.Text
+} deriving (Eq, Show, Generic, ToJSON, FromJSON, FromForm)
 
 authAPI :: Proxy AuthAPI
 authAPI = Proxy
@@ -77,12 +95,14 @@ authServerT = (authSignUpGetHandler
          :<|> (authSignInGetHandler
          :<|>  authSignInPostHandler)
          :<|>  authSignOutPostHandler
+         :<|>  authChangePasswordFormHandler
+         :<|>  authChangePasswordPostHandler
 
   where authSignUpGetHandler :: ReaderHandler RawHtml
         authSignUpGetHandler = TP.htmlHandler mempty "/sign_up.html"
 
-        authSignUpPostHandler :: (ToHttpApiData RedirectUrl, IsString RedirectUrl) =>
-          AccountData -> ReaderHandler (Headers '[Header "Location" RedirectUrl] NoContent)
+        authSignUpPostHandler :: AccountData
+                              -> ReaderHandler (Headers '[Header "Location" RedirectUrl] NoContent)
         authSignUpPostHandler accountData = do
           pool <- asks getPool
           hashedPassword <- hashPassword $ mkPassword $ TL.toStrict $ password accountData
@@ -100,11 +120,11 @@ authServerT = (authSignUpGetHandler
         authSignInGetHandler :: ReaderHandler RawHtml
         authSignInGetHandler = TP.htmlHandler mempty "/sign_in.html"
 
-        authSignInPostHandler :: (ToHttpApiData RedirectUrl, IsString RedirectUrl) =>
-          AccountData -> ReaderHandler ( Union '[ WithStatus 401 RawHtml
-                                                , WithStatus 303 ( Headers '[ Header "Location" RedirectUrl
-                                                                            , Header "Set-Cookie" SetCookie
-                                                                            ] NoContent ) ] )
+        authSignInPostHandler :: AccountData
+                              -> ReaderHandler ( Union '[ WithStatus 401 RawHtml
+                                                        , WithStatus 303 ( Headers '[ Header "Location" RedirectUrl
+                                                                                    , Header "Set-Cookie" SetCookie
+                                                                                    ] NoContent ) ] )
         authSignInPostHandler accountData = do
           pool <- asks getPool
           currentTimestamp <- liftIO getCurrentTime
@@ -178,10 +198,10 @@ authServerT = (authSignUpGetHandler
                       \session -> (_sessionAccountId session ==. val_ (primaryKey account)) &&.
                                   (_sessionExpireAt session <=. val_ currentTimestamp)
 
-        authSignOutPostHandler:: (ToHttpApiData RedirectUrl, IsString RedirectUrl) =>
-             Maybe SignInAccount -> ReaderHandler (Headers '[ Header "Location" RedirectUrl
-                                                            , Header "Set-Cookie" SetCookie
-                                                            ] NoContent)
+        authSignOutPostHandler:: Maybe SignInAccount
+                              -> ReaderHandler (Headers '[ Header "Location" RedirectUrl
+                                                         , Header "Set-Cookie" SetCookie
+                                                         ] NoContent)
         authSignOutPostHandler Nothing        = return $ addHeader "/" $
                                                          noHeader
                                                         NoContent
@@ -200,3 +220,95 @@ authServerT = (authSignUpGetHandler
                                               , setCookieMaxAge   = Just $ secondsToDiffTime (-1)
                                               }
                    NoContent
+
+        authChangePasswordFormHandler :: Maybe SignInAccount
+                                      -> ReaderHandler( Union '[ WithStatus 403 RawHtml
+                                                               , WithStatus 404 RawHtml
+                                                               , WithStatus 200 RawHtml
+                                                               ] )
+        authChangePasswordFormHandler Nothing = respond =<< liftIO authFailToSignInView
+        authChangePasswordFormHandler (Just account) = do
+          pool <- asks getPool
+          account <- liftIO $ selectAccount pool account
+          case account of
+            Left err -> do
+              html <- TP.htmlHandler context "/empty.html"
+              respond $ WithStatus @404 html
+              where context = HS.fromList [( "globalMsgs", toJSON [TLE.decodeUtf8 $ errBody err] )]
+            Right account -> do
+              html <- TP.htmlHandler mempty "/account_form_edit.html"
+              respond $ WithStatus @200 html
+
+        authChangePasswordPostHandler :: Maybe SignInAccount
+                                      -> ChangePasswordData
+                                      -> ReaderHandler( Union '[ WithStatus 403 RawHtml
+                                                               , WithStatus 401 RawHtml
+                                                               , WithStatus 303 ( Headers '[ Header "Location" RedirectUrl] NoContent
+                                                                                ) ] )
+        authChangePasswordPostHandler Nothing _ = respond =<< liftIO authFailToSignInView
+        authChangePasswordPostHandler (Just account) passwordData = do
+          pool <- asks getPool
+          account <- liftIO $ selectAccount pool account
+          originPasswordCorrectAccount <- liftIO $
+                                          checkOriginPasswordCorrect (originPassword passwordData)
+                                                                     account
+          passwordConfirmCorrectAccount <- liftIO $
+                                           checkPasswordConfirmCorrect (newPassword passwordData)
+                                                                       (confirmPassword passwordData)
+                                                                       originPasswordCorrectAccount
+          case passwordConfirmCorrectAccount of
+            Left (ServerError 401 _ errBody _) -> do
+              html <- TP.htmlHandler context "/empty.html"
+              respond $ WithStatus @401 html
+              where context = HS.fromList [( "globalMsgs", toJSON [TLE.decodeUtf8 errBody] )]
+            Right (account, newPassword) -> do
+              hashedPassword <- liftIO $ hashPassword $ mkPassword $ TL.toStrict newPassword
+              liftIO $ updatePassword pool account hashedPassword
+              red <- redirect ("/profile" :: RedirectUrl)
+              respond $ WithStatus @303 red
+            _ -> throwError err500
+          where
+                checkOriginPasswordCorrect :: TL.Text
+                                           -> Either ServerError Account
+                                           -> IO (Either ServerError Account)
+                checkOriginPasswordCorrect password account =
+                  case account of
+                    Left err -> return $ Left err
+                    Right account -> do
+                      let originPassword = PasswordHash { unPasswordHash = TL.toStrict $ _accountPassword account}
+                          inputPassword = mkPassword $ TL.toStrict password
+                      case checkPassword inputPassword originPassword of
+                          PasswordCheckFail    -> return $ Left err401 { errBody = "Password incorrect." }
+                          PasswordCheckSuccess -> return $ return account
+                checkPasswordConfirmCorrect :: TL.Text
+                                            -> TL.Text
+                                            -> Either ServerError Account
+                                            -> IO (Either ServerError (Account, TL.Text))
+                checkPasswordConfirmCorrect newPassword confirmPassword account =
+                  case account of
+                    Left err -> return $ Left err
+                    Right account -> do
+                      let newPass = mkPassword $ TL.toStrict newPassword
+                      hashedConfirmPassword <- hashPassword $ mkPassword $ TL.toStrict confirmPassword
+                      case checkPassword newPass hashedConfirmPassword of
+                        PasswordCheckFail    -> return $ Left err401 { errBody = "Password confirm incorrect." }
+                        PasswordCheckSuccess -> return $ return (account, confirmPassword)
+                updatePassword :: Pool Connection
+                               -> Account
+                               -> PasswordHash Argon2
+                               -> IO ()
+                updatePassword pool account (PasswordHash hashedPassword) = do
+                  withResource pool $ \conn -> runBeamPostgres conn $ do
+                    runUpdate $ save (_healthAccount healthDb) ( account {
+                      _accountPassword = TL.fromStrict hashedPassword
+                    } )
+
+
+
+selectAccount :: Pool Connection -> SignInAccount -> IO (Either ServerError Account)
+selectAccount pool signInAccount = do
+  account <- withResource pool $ \conn -> runBeamPostgres conn $
+    runSelectReturningOne $ select $
+    filter_ ((val_ (accountId signInAccount) ==.) . _accountId) $
+    all_ $ _healthAccount healthDb
+  return $ maybeToEither (err404 { errBody = "No Such User." }) account

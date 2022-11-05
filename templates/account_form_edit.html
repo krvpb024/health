@@ -1,0 +1,28 @@
+{% extends "layout.html" %}
+
+{%- block title %}修改密碼{% endblock %}
+
+{%- block head %}
+{% endblock %}
+
+{%- block content %}
+<section aria-labelledby="base-title">
+  <h1 id="base-title">修改密碼</h1>
+
+  <form action="/auth/change_password" aria-labelledby="base-title" method="post">
+    <label for="origin-password">現在的密碼</label>
+    <input id="origin-password" name="originPassword" type="password" autocomplete="current-password" required>
+
+    <label for="origin-password">新密碼</label>
+    <input id="origin-password" name="newPassword" type="password" autocomplete="new-password" required>
+
+    <label for="origin-password">再次輪入新密碼</label>
+    <input id="origin-password" name="confirmPassword" type="password" required>
+
+    <button type="submit">送出</button>
+  </form>
+</section>
+{% endblock %}
+
+{%- block script %}
+{% endblock %}
