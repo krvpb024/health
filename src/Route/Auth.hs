@@ -55,23 +55,38 @@ type AuthAPI = "auth" :> ("sign_up" :> ( Get '[HTML] RawHtml
                                                                                , Header "Set-Cookie" SetCookie
                                                                                ] NoContent )
                      :<|> "password" :> "edit"
-                        :> AuthProtect "cookie-auth"
-                        :> UVerb 'GET '[HTML] [ WithStatus 403 RawHtml
-                                              , WithStatus 404 RawHtml
-                                              , WithStatus 200 RawHtml
-                                              ]
+                            :> AuthProtect "cookie-auth"
+                            :> UVerb 'GET '[HTML] [ WithStatus 403 RawHtml
+                                                  , WithStatus 404 RawHtml
+                                                  , WithStatus 200 RawHtml
+                                                  ]
                      :<|> "password" :> "put"
-                        :> AuthProtect "cookie-auth"
-                        :> ReqBody '[FormUrlEncoded] ChangePasswordData
-                        :> UVerb 'POST '[HTML] [ WithStatus 403 RawHtml
-                                               , WithStatus 401 RawHtml
-                                               , WithStatus 303 (Headers '[ Header "Location" RedirectUrl] NoContent )
-                                               ]
+                            :> AuthProtect "cookie-auth"
+                            :> ReqBody '[FormUrlEncoded] ChangePasswordData
+                            :> UVerb 'POST '[HTML] [ WithStatus 403 RawHtml
+                                                   , WithStatus 401 RawHtml
+                                                   , WithStatus 303 (Headers '[ Header "Location" RedirectUrl] NoContent )
+                                                   ]
+                     :<|> "edit"
+                            :> AuthProtect "cookie-auth"
+                            :> UVerb 'GET '[HTML] [ WithStatus 403 RawHtml
+                                                  , WithStatus 200 RawHtml
+                                                  ]
+                     :<|> "put"
+                            :> AuthProtect "cookie-auth"
+                            :> ReqBody '[FormUrlEncoded] AccountPutData
+                            :> UVerb 'POST '[HTML] [ WithStatus 403 RawHtml
+                                                   , WithStatus 303 (Headers '[ Header "Location" RedirectUrl] NoContent )
+                                                   ]
                          )
 
 data AccountData = AccountData { name     :: TL.Text
                                , password :: TL.Text
                                } deriving (Eq, Show, Generic, ToJSON, FromJSON, FromForm)
+
+newtype AccountPutData
+  = AccountPutData { editAccountName :: TL.Text }
+  deriving (Eq, Show, Generic, ToJSON, FromJSON, FromForm)
 
 data ChangePasswordData = ChangePasswordData {
     originPassword  :: TL.Text
@@ -91,12 +106,14 @@ authServerReader = asks $ \env ->
 
 authServerT :: ServerT AuthAPI ReaderHandler
 authServerT = (authSignUpGetHandler
-         :<|>  authSignUpPostHandler)
+         :<|> authSignUpPostHandler)
          :<|> (authSignInGetHandler
-         :<|>  authSignInPostHandler)
-         :<|>  authSignOutPostHandler
-         :<|>  authChangePasswordFormHandler
-         :<|>  authChangePasswordPostHandler
+         :<|> authSignInPostHandler)
+         :<|> authSignOutPostHandler
+         :<|> authChangePasswordFormHandler
+         :<|> authChangePasswordPostHandler
+         :<|> authFormGetHandler
+         :<|> authAccountPutHandler
 
   where authSignUpGetHandler :: ReaderHandler RawHtml
         authSignUpGetHandler = TP.htmlHandler mempty "/sign_up.html"
@@ -236,7 +253,7 @@ authServerT = (authSignUpGetHandler
               respond $ WithStatus @404 html
               where context = HS.fromList [( "globalMsgs", toJSON [TLE.decodeUtf8 $ errBody err] )]
             Right account -> do
-              html <- TP.htmlHandler mempty "/account_form_edit.html"
+              html <- TP.htmlHandler mempty "/account_password_edit.html"
               respond $ WithStatus @200 html
 
         authChangePasswordPostHandler :: Maybe SignInAccount
@@ -303,7 +320,38 @@ authServerT = (authSignUpGetHandler
                       _accountPassword = TL.fromStrict hashedPassword
                     } )
 
+        authFormGetHandler :: Maybe SignInAccount
+                           -> ReaderHandler( Union '[ WithStatus 403 RawHtml
+                                                    , WithStatus 200 RawHtml
+                                                    ] )
+        authFormGetHandler Nothing = respond =<< liftIO authFailToSignInView
+        authFormGetHandler (Just account) = do
+          html <- TP.htmlHandler context "/account_form_edit.html"
+          respond $ WithStatus @200 html
+          where context = HS.fromList [( "accountName", toJSON $ accountName account )]
 
+        authAccountPutHandler :: Maybe SignInAccount
+                              -> AccountPutData
+                              -> ReaderHandler( Union '[ WithStatus 403 RawHtml
+                                                       , WithStatus 303 ( Headers '[ Header "Location" RedirectUrl] NoContent ) ] )
+        authAccountPutHandler Nothing _ = respond =<< liftIO authFailToSignInView
+        authAccountPutHandler (Just signInAccount) accountPutData = do
+          pool <- asks getPool
+          liftIO $ updateAccount pool signInAccount accountPutData
+          red <- redirect ("/profile" :: RedirectUrl)
+          respond $ WithStatus @303 red
+          where
+                updateAccount :: Pool Connection
+                              -> SignInAccount
+                              -> AccountPutData
+                              -> IO ()
+                updateAccount pool signInAccount accountPutData =
+                  withResource pool $ \conn -> runBeamPostgres conn $ do
+                    Just account <- runSelectReturningOne $ lookup_ (_healthAccount healthDb)
+                                                              ((AccountId . accountId) signInAccount)
+                    runUpdate $ save (_healthAccount healthDb) (account {
+                      _accountName = editAccountName accountPutData
+                    })
 
 selectAccount :: Pool Connection -> SignInAccount -> IO (Either ServerError Account)
 selectAccount pool signInAccount = do

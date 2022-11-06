@@ -1,27 +1,23 @@
 {% extends "layout.html" %}
 
-{%- block title %}修改密碼{% endblock %}
+{%- block title %}編輯帳號{% endblock %}
 
 {%- block head %}
 {% endblock %}
 
 {%- block content %}
-<section aria-labelledby="base-title">
-  <h1 id="base-title">修改密碼</h1>
+<main>
+  <section aria-labelledby="page-title">
+    <h1 id="page-title">編輯帳號</h1>
 
-  <form action="/auth/password/put" aria-labelledby="base-title" method="post">
-    <label for="origin-password">現在的密碼</label>
-    <input id="origin-password" name="originPassword" type="password" autocomplete="current-password" required>
+    <form action="/auth/put" aria-labelledby="page-title" method="post">
+      <label for="account-name">帳號名：</label>
+      <input type="text" id="account-name" name="editAccountName" required value="{{ accountName }}">
 
-    <label for="origin-password">新密碼</label>
-    <input id="origin-password" name="newPassword" type="password" autocomplete="new-password" required>
-
-    <label for="origin-password">再次輪入新密碼</label>
-    <input id="origin-password" name="confirmPassword" type="password" required>
-
-    <button type="submit">送出</button>
-  </form>
-</section>
+      <button type="submit">送出</button>
+    </form>
+  </section>
+</main>
 {% endblock %}
 
 {%- block script %}
