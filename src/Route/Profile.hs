@@ -59,14 +59,12 @@ type ProfileAPI =  "profile" :> ( AuthProtect "cookie-auth"
                                                                                        ] NoContent )
                                                            ]
                              :<|> AuthProtect "cookie-auth"
-                                    :> Capture "profileId" Int32
                                     :> "edit"
                                     :> UVerb 'GET '[HTML] [ WithStatus 403 RawHtml
                                                           , WithStatus 404 RawHtml
                                                           , WithStatus 200 RawHtml
                                                           ]
                              :<|> AuthProtect "cookie-auth"
-                                    :> Capture "profileId" Int32
                                     :> "put"
                                     :> ReqBody '[FormUrlEncoded] ProfilePostData
                                     :> UVerb 'POST '[HTML] [ WithStatus 403 RawHtml
@@ -99,7 +97,6 @@ profileServerT = profileGetHandler
             :<|> profileGetEditFormHandler
             :<|> profilePutHandler
 
-  -- FIXME change maybe type to Either
   where profileGetHandler :: Maybe SignInAccount
                           -> ReaderHandler ( Union '[ WithStatus 403 RawHtml
                                                     , WithStatus 404 RawHtml
@@ -141,28 +138,26 @@ profileServerT = profileGetHandler
           profile <- liftIO $ insertProfile pool account profileFormData
           red <- redirect ("/auth/sign_in" :: RedirectUrl)
           respond $ WithStatus @303 red
-
-            where
-                  insertProfile :: Pool Connection -> SignInAccount -> ProfilePostData -> IO Profile
-                  insertProfile pool account profileFormData = do
-                    [profile] <- withResource pool $ \conn -> runBeamPostgres conn $
-                      runInsertReturningList $ Database.Beam.insert (_healthProfile healthDb) $
-                      insertExpressions [ Profile { _profileId         = default_
-                                                  , _profileAccountId  = AccountId $ val_ $ accountId account
-                                                  , _profileGender     = val_ $ bool False True $
-                                                                                gender profileFormData == "male"
-                                                  , _profileBirthDate  = val_ $ birthDate profileFormData
-                                                  , _profileHeight = val_ $ height profileFormData
-                                                  } ]
-                    pure profile
+          where
+                insertProfile :: Pool Connection -> SignInAccount -> ProfilePostData -> IO Profile
+                insertProfile pool account profileFormData = do
+                  [profile] <- withResource pool $ \conn -> runBeamPostgres conn $
+                    runInsertReturningList $ Database.Beam.insert (_healthProfile healthDb) $
+                    insertExpressions [ Profile { _profileId         = default_
+                                                , _profileAccountId  = AccountId $ val_ $ accountId account
+                                                , _profileGender     = val_ $ bool False True $
+                                                                              gender profileFormData == "male"
+                                                , _profileBirthDate  = val_ $ birthDate profileFormData
+                                                , _profileHeight = val_ $ height profileFormData
+                                                } ]
+                  pure profile
 
         profileGetEditFormHandler :: Maybe SignInAccount
-                                  -> Int32
                                   -> ReaderHandler ( Union '[ WithStatus 403 RawHtml
                                                             , WithStatus 404 RawHtml
                                                             , WithStatus 200 RawHtml ] )
-        profileGetEditFormHandler Nothing _ = respond =<< liftIO authFailToSignInView
-        profileGetEditFormHandler (Just account) profileId = do
+        profileGetEditFormHandler Nothing = respond =<< liftIO authFailToSignInView
+        profileGetEditFormHandler (Just account) = do
           pool <- asks getPool
           profile <- liftIO $ selectProfile pool account
           let authorizedProfile = profile >>= checkHasProfilePermission account
@@ -186,14 +181,13 @@ profileServerT = profileGetHandler
             _ -> throw err500
 
         profilePutHandler :: Maybe SignInAccount
-                          -> Int32
                           -> ProfilePostData
                           -> ReaderHandler( Union '[ WithStatus 403 RawHtml
                                                    , WithStatus 404 RawHtml
                                                    , WithStatus 303 ( Headers '[ Header "Location" RedirectUrl
                                                                                ] NoContent ) ] )
-        profilePutHandler Nothing _ _ = respond =<< liftIO authFailToSignInView
-        profilePutHandler (Just account) profileId profilePutData = do
+        profilePutHandler Nothing _ = respond =<< liftIO authFailToSignInView
+        profilePutHandler (Just account) profilePutData = do
           pool <- asks getPool
           profile <- liftIO $ selectProfile pool account
           let authorizedProfile = profile >>= checkHasProfilePermission account
