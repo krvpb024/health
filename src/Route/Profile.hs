@@ -2,7 +2,6 @@
 {-# LANGUAGE ConstraintKinds #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE DerivingVia #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
@@ -41,6 +40,7 @@ import Data.Bool
 import qualified Data.Text.Lazy.Encoding as TLE
 import Data.Either.Combinators
 import Control.Exception
+import qualified Data.Text as T
 
 type ProfileAPI =  "profile" :> ( AuthProtect "cookie-auth"
                                     :> UVerb 'GET '[HTML] [ WithStatus 403 RawHtml
@@ -76,9 +76,28 @@ type ProfileAPI =  "profile" :> ( AuthProtect "cookie-auth"
 
 data ProfilePostData = ProfilePostData {
     birthDate :: Day
-  , gender    :: TL.Text
+  , gender    :: Bool
   , height    :: Double
-} deriving (Eq, Show, Generic, ToJSON, FromJSON, FromForm)
+} deriving (Eq, Show, Generic)
+
+instance FromJSON ProfilePostData where
+  parseJSON = withObject "ProfilePostData" $ \v -> ProfilePostData
+      <$> v .: "birthDate"
+      <*> (bool False True . (("male" :: TL.Text) ==) <$> (v .: "gender"))
+      <*> v .: "height"
+
+instance ToJSON ProfilePostData where
+  toJSON (ProfilePostData birthDate gender height) =
+      object [ "birthDate" .= birthDate
+             , "gender"    .= bool ("女" :: TL.Text) "男" gender
+             , "height"    .= height
+             ]
+
+instance FromForm ProfilePostData where
+  fromForm f = ProfilePostData
+    <$> parseUnique "birthDate" f
+    <*> (bool False True . (("male" :: TL.Text) ==) <$> parseUnique "gender" f)
+    <*> parseUnique "height" f
 
 profileAPI :: Proxy ProfileAPI
 profileAPI = Proxy
@@ -145,8 +164,7 @@ profileServerT = profileGetHandler
                     runInsertReturningList $ Database.Beam.insert (_healthProfile healthDb) $
                     insertExpressions [ Profile { _profileId         = default_
                                                 , _profileAccountId  = AccountId $ val_ $ accountId account
-                                                , _profileGender     = val_ $ bool False True $
-                                                                              gender profileFormData == "male"
+                                                , _profileGender     = val_ $ gender profileFormData
                                                 , _profileBirthDate  = val_ $ birthDate profileFormData
                                                 , _profileHeight = val_ $ height profileFormData
                                                 } ]
@@ -175,7 +193,7 @@ profileServerT = profileGetHandler
               respond $ WithStatus @200 html
               where context = HS.fromList [ ( "profileId", toJSON $ _profileId profile )
                                           , ( "profileData", toJSON $ ProfilePostData (_profileBirthDate profile)
-                                                                                      (bool "female" "male" $ _profileGender profile)
+                                                                                      (_profileGender profile)
                                                                                       (_profileHeight profile) )
                                           ]
             _ -> throw err500
@@ -208,7 +226,7 @@ profileServerT = profileGetHandler
                     updateProfile pool profile profilePutData =
                       withResource pool $ \conn -> runBeamPostgres conn $ do
                         runUpdate $ save (_healthProfile healthDb) ( profile {
-                            _profileGender = bool False True (gender profilePutData == "male")
+                            _profileGender = gender profilePutData
                           , _profileBirthDate = birthDate profilePutData
                           , _profileHeight = height profilePutData
                         } )

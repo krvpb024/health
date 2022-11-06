@@ -22,17 +22,17 @@
             性別<span>（不同生理性別的標準不同）</span>
           </legend>
           {%- macro genderInput(gender, checked) -%}
-          {%- if (checked == gender) || (checked == gender) -%}
+          {%- if checked -%}
           <input type="radio" name="gender" id="radio-gender-{{ gender }}" value="{{ gender }}" required checked>
           {%- else -%}
           <input type="radio" name="gender" id="radio-gender-{{ gender }}" value="{{ gender }}" required>
           {%- endif -%}
           {%- endmacro -%}
 
-          {{ genderInput("male", checked=profileData.gender) }}
+          {{ genderInput("male", checked=profileData.gender == "男") }}
           <label for="radio-gender-male">男</label>
 
-          {{ genderInput("female", checked=profileData.gender) }}
+          {{ genderInput("female", checked=profileData.gender == "女") }}
           <label for="radio-gender-female">女</label>
         </fieldset>
 

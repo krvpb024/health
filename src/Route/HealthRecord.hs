@@ -79,6 +79,13 @@ healthRecordServerReader = asks $ \env ->
                         (readerToHandler env)
                         healthRecordServerT
 
+data HealthRecordTimeFilterMode =
+    PastWeek
+  | PastMonth
+  | PastNDay Integer
+  | Between UTCTime UTCTime
+  deriving (Eq, Show, Generic, ToJSON, FromJSON, FromForm)
+
 data PostHealthRecordData = PostHealthRecordData {
     postHeight            :: Double
   , postWeight            :: Double
