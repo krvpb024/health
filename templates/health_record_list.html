@@ -1,12 +1,12 @@
 {% extends "layout.html" %}
 
-{%- block title %}我的記錄{% endblock %}
+{%- block title -%}我的記錄{%- endblock -%}
 
-{%- block head %}
+{%- block head -%}
 <link rel="stylesheet" href="./static/health_record_list.css">
-{% endblock %}
+{%- endblock -%}
 
-{%- block content %}
+{%- block content -%}
 <main>
   <section aria-labelledby="base-title">
     <h1 id="base-title">我的記錄</h1>
@@ -27,21 +27,21 @@
       </thead>
 
       <tbody>
-        {% for healthRecord in healthRecordList %}
+        {%- for healthRecord in healthRecordList -%}
         <tr>
           <td>{{ healthRecord.recordDate }}</td>
           <td>{{ healthRecord.height }}</td>
           <td>{{ healthRecord.weight }}</td>
           <td>{{ healthRecord.bmi }}</td>
           <td>
-            {% if healthRecord.bodyFatPercentage %}
+            {%- if healthRecord.bodyFatPercentage -%}
             {{ healthRecord.bodyFatPercentage }}%
-            {% endif %}
+            {%- endif -%}
           </td>
           <td>
-            {% if healthRecord.waistlineCm %}
+            {%- if healthRecord.waistlineCm -%}
             {{ healthRecord.waistlineCm }}
-            {% endif %}
+            {%- endif -%}
           </td>
           <td>
             <a href="/health_record/{{ healthRecord['recordId'] }}/form">編輯</a>
@@ -58,9 +58,24 @@
             </details>
           </td>
         </tr>
-        {% endfor %}
+        {%- endfor -%}
       </tbody>
     </table>
   </section>
 </main>
-{% endblock %}
+
+<section aria-labelledby="filter-title">
+  <h2 id="filter-title">篩選紀錄</h2>
+
+  <a href="/health_record?from={{ navFilterRange['pastWeekFrom'] }}&to={{ navFilterRange['now'] }}">過去七天</a>
+  <a href="/health_record?from={{ navFilterRange['pastMonthFrom'] }}&to={{ navFilterRange['now'] }}">過去三十天</a>
+
+  <form action="/health_record" method="get" aria-labelledby="自訂區間">
+    <label for="custom-filter-from-input" class="custom-filter-label">從</label>
+    <input type="date" name="from" id="custom-filter-from-input" value="{{ queryRange.from}}">
+    <label for="custom-filter-to-input" class="custom-filter-label">到</label>
+    <input type="date" name="to" id="custom-filter-to-input" value="{{ queryRange.to}}">
+    <button type="submit">送出</button>
+  </form>
+</section>
+{%- endblock -%}

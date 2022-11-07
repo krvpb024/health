@@ -4,6 +4,7 @@
 {-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE DeriveAnyClass #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE InstanceSigs #-}
 
 module Route.HealthRecord where
 
@@ -30,8 +31,16 @@ import Web.FormUrlEncoded
 import Database.Beam.Backend.SQL.BeamExtensions
 import Data.Int
 import Control.Exception
+import qualified Data.Text.Lazy as TL
+import qualified Data.Text as TS
+import Data.Time.Format.ISO8601
+import Control.Monad
+import Text.Read
+import Data.Maybe
 
 type HealthRecordAPI = "health_record" :> ( AuthProtect "cookie-auth"
+                                              :> QueryParam "from" FilterValue
+                                              :> QueryParam "to" FilterValue
                                               :> UVerb 'GET '[HTML] [ WithStatus 403 RawHtml
                                                                     , WithStatus 200 RawHtml
                                                                     ]
@@ -43,14 +52,14 @@ type HealthRecordAPI = "health_record" :> ( AuthProtect "cookie-auth"
                                        :<|> AuthProtect "cookie-auth"
                                               :> ReqBody '[FormUrlEncoded] PostHealthRecordData
                                               :> UVerb 'POST '[HTML] [ WithStatus 403 RawHtml
-                                                                     , WithStatus 303 (Headers '[ Header "Location" RedirectUrl] NoContent )
+                                                                     , WithStatus 303 ( Headers '[ Header "Location" RedirectUrl ] NoContent )
                                                                      ]
                                        :<|> AuthProtect "cookie-auth"
                                               :> Capture "recordId" Int32
                                               :> "delete"
                                               :> UVerb 'POST '[HTML] [ WithStatus 403 RawHtml
                                                                      , WithStatus 404 RawHtml
-                                                                     , WithStatus 303 (Headers '[ Header "Location" RedirectUrl] NoContent )
+                                                                     , WithStatus 303 ( Headers '[ Header "Location" RedirectUrl ] NoContent )
                                                                      ]
                                        :<|> AuthProtect "cookie-auth"
                                               :> Capture "recordId" Int32
@@ -65,7 +74,7 @@ type HealthRecordAPI = "health_record" :> ( AuthProtect "cookie-auth"
                                               :> ReqBody '[FormUrlEncoded] PostHealthRecordData
                                               :> UVerb 'POST '[HTML] [ WithStatus 403 RawHtml
                                                                      , WithStatus 404 RawHtml
-                                                                     , WithStatus 303 (Headers '[ Header "Location" RedirectUrl] NoContent )
+                                                                     , WithStatus 303 ( Headers '[ Header "Location" RedirectUrl ] NoContent )
                                                                      ]
                                           )
 
@@ -79,13 +88,6 @@ healthRecordServerReader = asks $ \env ->
                         (readerToHandler env)
                         healthRecordServerT
 
-data HealthRecordTimeFilterMode =
-    PastWeek
-  | PastMonth
-  | PastNDay Integer
-  | Between UTCTime UTCTime
-  deriving (Eq, Show, Generic, ToJSON, FromJSON, FromForm)
-
 data PostHealthRecordData = PostHealthRecordData {
     postHeight            :: Double
   , postWeight            :: Double
@@ -95,6 +97,7 @@ data PostHealthRecordData = PostHealthRecordData {
 } deriving (Eq, Show, Generic, ToJSON, FromJSON)
 
 instance FromForm PostHealthRecordData where
+  fromForm :: Form -> Either TS.Text PostHealthRecordData
   fromForm f = PostHealthRecordData
     <$> parseUnique "postHeight" f
     <*> parseUnique "postWeight" f
@@ -103,8 +106,7 @@ instance FromForm PostHealthRecordData where
     <*> parseUnique "postDate" f
 
     where optionalDoubleToMaybe :: String -> Maybe Double
-          optionalDoubleToMaybe "" = Nothing
-          optionalDoubleToMaybe s = Just $ read s
+          optionalDoubleToMaybe = readMaybe
 
 data HealthRecordWithComputedValue = HealthRecordWithComputedValue {
     recordId          :: Int32
@@ -117,6 +119,23 @@ data HealthRecordWithComputedValue = HealthRecordWithComputedValue {
   , recordAt          :: String
 } deriving (Eq, Show, Generic, ToJSON, FromJSON)
 
+newtype FilterValue = FilterValue {
+  getFilterValue :: Maybe Day
+} deriving (Eq, Show, Generic)
+
+instance FromHttpApiData FilterValue where
+  parseQueryParam :: TS.Text -> Either TS.Text FilterValue
+  parseQueryParam = Right . FilterValue . readMaybe . TS.unpack
+
+data FilterMode = Past7Day
+                | Past30Day
+                | CustomFilter
+                deriving (Eq, Show, Generic, ToJSON, FromJSON)
+
+-- getFilterMode :: Day -> Day -> FilterMode
+
+
+
 healthRecordServerT :: ServerT HealthRecordAPI ReaderHandler
 healthRecordServerT = healthRecordListGetHandler
                  :<|> healthRecordGetCreateFormHandler
@@ -126,33 +145,79 @@ healthRecordServerT = healthRecordListGetHandler
                  :<|> healthRecordPutHandler
 
   where
+        -- FIXME healthRecordListGetHandler add date filter
         healthRecordListGetHandler :: Maybe SignInAccount
+                                   -> Maybe FilterValue
+                                   -> Maybe FilterValue
                                    -> ReaderHandler ( Union '[ WithStatus 403 RawHtml
                                                              , WithStatus 200 RawHtml ] )
-        healthRecordListGetHandler Nothing = respond =<< liftIO authFailToSignInView
-        healthRecordListGetHandler (Just account) = do
+        healthRecordListGetHandler Nothing _ _ = respond =<< liftIO authFailToSignInView
+        healthRecordListGetHandler (Just account) filterFrom filterTo = do
+          currentTime <- liftIO getCurrentTime
           pool <- asks getPool
-          joinedHealthRecordList <- liftIO $ selectHealthRecordList pool account
-          let healthRecordWithComputedValueList = computeBmiAndOthers <$> joinedHealthRecordList
-              context = HS.fromList [ ( "healthRecordList"
-                                      , toJSON (healthRecordWithComputedValueList :: [HealthRecordWithComputedValue])) ]
+          let pastWeekFrom = addDays (-6) now
+              pastMonthFrom = addDays (-29) now
+              now = utctDay currentTime
+              navFilterRange :: HS.HashMap TL.Text String
+              navFilterRange = HS.fromList [ ( "now", iso8601Show now )
+                                           , ( "pastWeekFrom", iso8601Show pastWeekFrom )
+                                           , ( "pastMonthFrom", iso8601Show pastMonthFrom ) ]
+              from = getFilterValue =<< filterFrom
+              to = getFilterValue =<< filterTo
+              queryRange :: HS.HashMap TL.Text (Maybe Day)
+              queryRange = HS.fromList [ ( "from", from )
+                                       , ( "to", to ) ]
+              filterMode = getFilterMode from to
+                where
+                      getFilterMode :: Maybe Day -> Maybe Day -> FilterMode
+                      getFilterMode Nothing _ = CustomFilter
+                      getFilterMode _ Nothing = CustomFilter
+                      getFilterMode (Just from) (Just to)
+                        | from == pastWeekFrom && to == now = Past7Day
+                        | from == pastMonthFrom && to == now = Past30Day
+                        | otherwise = CustomFilter
+          joinedHealthRecordList <- liftIO $ selectHealthRecordList pool account from to now
+          let context = HS.fromList [ ( "healthRecordList"
+                                      , toJSON ( computeBmiAndOthers <$>
+                                                 joinedHealthRecordList ) )
+                                    , ( "navFilterRange"
+                                      , toJSON navFilterRange )
+                                    , ( "queryRange"
+                                      , toJSON queryRange )
+                                    , ( "filterMode"
+                                      , toJSON filterMode )
+                                    ]
+
           html <- TP.htmlHandler context "/health_record_list.html"
           respond $ WithStatus @200 html
           where
                 selectHealthRecordList :: Pool Connection
                                        -> SignInAccount
-                                       -> IO [(Profile, HealthRecord)]
-                selectHealthRecordList pool signInAccount = do
+                                       -> Maybe Day
+                                       -> Maybe Day
+                                       -> Day
+                                       -> IO [HealthRecord]
+                selectHealthRecordList pool signInAccount from to now = do
                   withResource pool $ \conn -> runBeamPostgres conn $
-                    runSelectReturningList $ select $ orderBy_ (desc_ . _healthRecordDate . snd) $ do
-                      account <- all_ $ _healthAccount healthDb
-                      profile <- join_ (_healthProfile healthDb) $ (primaryKey account ==.) . _profileAccountId
-                      healthRecord <- join_ (_healthHealthRecord healthDb) $ (primaryKey profile ==.) . _healthRecordProfileId
-                      guard_ $ _accountId account ==. val_ (accountId signInAccount)
-                      pure (profile, healthRecord)
+                    runSelectReturningList $ select $
+                      orderBy_ (\ord -> ( desc_ $  _healthRecordDate ord
+                                        , desc_ $ _healthRecordRecordAt ord )) $ do
+                      profile <- all_ $ _healthProfile healthDb
+                      healthRecord <- join_ (_healthHealthRecord healthDb) $
+                                            (primaryKey profile ==.) . _healthRecordProfileId
+                      guard_ (_profileAccountId profile ==. (AccountId . val_ . accountId) signInAccount)
+                      guard_ $ case (from, to) of
+                                (Nothing,   Nothing) -> _healthRecordDate healthRecord <=. val_ now
+                                (Nothing,   Just to) -> _healthRecordDate healthRecord <=. val_ to
+                                (Just from, Nothing) -> _healthRecordDate healthRecord >=. val_ from
+                                (Just from, Just to) -> (&&.) (_healthRecordDate healthRecord >=. val_ from) $
+                                                              _healthRecordDate healthRecord <=. val_ to
+                      pure healthRecord
 
-                computeBmiAndOthers :: (Profile, HealthRecord) -> HealthRecordWithComputedValue
-                computeBmiAndOthers (profile, healthRecord) =
+
+                computeBmiAndOthers :: HealthRecord
+                                    -> HealthRecordWithComputedValue
+                computeBmiAndOthers healthRecord =
                   HealthRecordWithComputedValue {
                       recordId = _healthRecordId healthRecord
                     , height = _healthRecordHeight healthRecord
@@ -162,17 +227,16 @@ healthRecordServerT = healthRecordListGetHandler
                     , waistlineCm = _healthRecordWaistlineCm healthRecord
                     , recordDate = _healthRecordDate healthRecord
                     , recordAt = formatTime
-                                  defaultTimeLocale
-                                  "%F"
-                                  (_healthRecordRecordAt healthRecord)
+                                 defaultTimeLocale "%F" $
+                                 _healthRecordRecordAt healthRecord
                   }
                   where w = _healthRecordWeight healthRecord
                         h = _healthRecordHeight healthRecord / 100
                         bmiValue = w / h / h :: Double
 
         healthRecordGetCreateFormHandler :: Maybe SignInAccount
-                                    -> ReaderHandler ( Union '[ WithStatus 403 RawHtml
-                                                              , WithStatus 200 RawHtml ] )
+                                         -> ReaderHandler ( Union '[ WithStatus 403 RawHtml
+                                                                   , WithStatus 200 RawHtml ] )
         healthRecordGetCreateFormHandler Nothing = respond =<< liftIO authFailToSignInView
         healthRecordGetCreateFormHandler (Just account) = do
           pool <- asks getPool
@@ -181,13 +245,14 @@ healthRecordServerT = healthRecordListGetHandler
             Left err -> do
               html <- TP.htmlHandler context "/sign_in.html"
               respond $ WithStatus @403 html
-              where context = HS.fromList [( "globalMsgs", toJSON [TLE.decodeUtf8 $ errBody err] )]
+              where context = HS.fromList [ ( "globalMsgs",
+                                              toJSON [TLE.decodeUtf8 $ errBody err ] ) ]
             Right profile -> do
               currentTime <- liftIO getZonedTime
               let context = HS.fromList [ ( "currentDate"
-                                              , toJSON $ formatTime defaultTimeLocale "%F" currentTime )
-                                          , ( "height"
-                                              , toJSON $ _profileHeight profile ) ]
+                                            , toJSON $ formatTime defaultTimeLocale "%F" currentTime )
+                                        , ( "height"
+                                            , toJSON $ _profileHeight profile ) ]
               html <- TP.htmlHandler context "/health_record_form.html"
               respond $ WithStatus @200 html
 
@@ -241,23 +306,23 @@ healthRecordServerT = healthRecordListGetHandler
           record <- liftIO $ selectHealthRecord pool recordId account
           let authorizedRecord = record >>= checkRecordPermission account
           case authorizedRecord of
-            Left err ->
-              case err of
-                ServerError 404 _ body _ -> do
-                  html <- TP.htmlHandler context "/empty.html"
-                  respond $ WithStatus @404 html
-                  where context = HS.fromList [( "globalMsgs", toJSON [TLE.decodeUtf8 body] )]
-                ServerError 403 _ body _ -> do
-                  html <- TP.htmlHandler context "/empty.html"
-                  respond $ WithStatus @403 html
-                  where context = HS.fromList [( "globalMsgs", toJSON [TLE.decodeUtf8 body] )]
-                _ -> throw err
+            Left (ServerError 404 _ errBody _) -> do
+              html <- TP.htmlHandler context "/empty.html"
+              respond $ WithStatus @404 html
+              where context = HS.fromList [ ( "globalMsgs"
+                                            , toJSON [TLE.decodeUtf8 errBody] ) ]
+            Left (ServerError 403 _ errBody _) -> do
+              html <- TP.htmlHandler context "/empty.html"
+              respond $ WithStatus @403 html
+              where context = HS.fromList [ ( "globalMsgs"
+                                            , toJSON [TLE.decodeUtf8 errBody] ) ]
             Right record -> liftIO $ do
               withResource pool $ \conn -> runBeamPostgres conn $
-                runDelete $ delete (_healthHealthRecord healthDb)
-                                   (\r -> _healthRecordId r ==. val_ (_healthRecordId record))
+                runDelete $ delete (_healthHealthRecord healthDb) $
+                                   \r -> _healthRecordId r ==. val_ (_healthRecordId record)
               red <- redirect ("/health_record" :: RedirectUrl)
               respond $ WithStatus @303 red
+            _ -> throwError err500
 
         healthRecordGetEditFormHandler ::Maybe SignInAccount
                                   -> Int32
@@ -283,17 +348,16 @@ healthRecordServerT = healthRecordListGetHandler
             Right record -> do
               let context = HS.fromList [ ( "healthRecordId", toJSON $ _healthRecordId record)
                                         , ( "healthRecord", toJSON PostHealthRecordData {
-                                                                      postHeight = _healthRecordHeight record
-                                                                    , postWeight = _healthRecordWeight record
-                                                                    , postBodyFatPercentage = _healthRecordBodyFatPercentage record
-                                                                    , postWaistlineCm = _healthRecordWaistlineCm record
-                                                                    , postDate = _healthRecordDate record
+                                                                       postHeight = _healthRecordHeight record
+                                                                     , postWeight = _healthRecordWeight record
+                                                                     , postBodyFatPercentage = _healthRecordBodyFatPercentage record
+                                                                     , postWaistlineCm = _healthRecordWaistlineCm record
+                                                                     , postDate = _healthRecordDate record
                                                                    } )
                                         ]
               html <- TP.htmlHandler context "/health_record_form_edit.html"
               respond $ WithStatus @200 html
-
-            _ -> throw err500
+            _ -> throwError err500
 
         healthRecordPutHandler :: Maybe SignInAccount
                                -> Int32
@@ -332,8 +396,7 @@ healthRecordServerT = healthRecordListGetHandler
                           , _healthRecordWaistlineCm = postWaistlineCm putHealthRecordData
                           , _healthRecordDate = postDate putHealthRecordData
                         } )
-
-            _ -> throw err500
+            _ -> throwError err500
 
 recordErr404 :: ServerError
 recordErr404 = err404 { errBody = TLE.encodeUtf8 "找不到這筆記錄" }
@@ -341,7 +404,9 @@ recordErr403 :: ServerError
 recordErr403 = err403 { errBody = TLE.encodeUtf8 "你沒有權限修改這筆記錄" }
 
 
-selectProfile :: Pool Connection -> SignInAccount -> IO (Either ServerError Profile)
+selectProfile :: Pool Connection
+              -> SignInAccount
+              -> IO (Either ServerError Profile)
 selectProfile pool signInAccount = do
   profile <- withResource pool $ \conn -> runBeamPostgres conn $
     runSelectReturningOne $ select $
@@ -350,9 +415,9 @@ selectProfile pool signInAccount = do
   pure $ maybeToRight err403 { errBody = TLE.encodeUtf8 "你必須先建立個人檔案"} profile
 
 selectHealthRecord :: Pool Connection
-                    -> Int32
-                    -> SignInAccount
-                    -> IO (Either ServerError (Account, Profile, HealthRecord))
+                   -> Int32
+                   -> SignInAccount
+                   -> IO (Either ServerError (Account, Profile, HealthRecord))
 selectHealthRecord pool recordId signInAccount =
   withResource pool $ \conn -> runBeamPostgres conn $ do
     accountAndRecord <- runSelectReturningOne $ select $ do

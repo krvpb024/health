@@ -60,6 +60,7 @@ extra-deps:
   - mtl-2.2.2@sha256:1050fb71acd9f5d67da7d992583f5bd0eb14407b9dc7acc122af1b738b706ca3,2261
   - Cabal-3.6.3.0@sha256:ff97c442b0c679c1c9876acd15f73ac4f602b973c45bde42b43ec28265ee48f4,12459
   - exceptions-0.10.5@sha256:b2c634a95ba2a68e0df3ae67d006f0dabb02edbe4dc77b321133551e308ca047,2832
+  - split-0.2.3.5
 
 # Override default flag values for local packages and extra-deps
 # flags: {}

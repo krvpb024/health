@@ -63,6 +63,7 @@ library
     , resource-pool
     , servant
     , servant-server
+    , split
     , text
     , time
     , transformers
@@ -104,6 +105,7 @@ executable health-exe
     , resource-pool
     , servant
     , servant-server
+    , split
     , text
     , time
     , transformers
@@ -149,6 +151,7 @@ test-suite health-test
     , resource-pool
     , servant
     , servant-server
+    , split
     , text
     , time
     , transformers

@@ -50,6 +50,7 @@ dependencies:
   - extra
   - either
   - transformers
+  - split
 
 library:
   source-dirs: src
