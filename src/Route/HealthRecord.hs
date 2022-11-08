@@ -39,8 +39,9 @@ import Text.Read
 import Data.Maybe
 
 type HealthRecordAPI = "health_record" :> ( AuthProtect "cookie-auth"
-                                              :> QueryParam "from" FilterValue
-                                              :> QueryParam "to" FilterValue
+                                              :> QueryParam "from" (MaybeQueryParam Day)
+                                              :> QueryParam "to" (MaybeQueryParam Day)
+                                              :> QueryParam "latestRecord" (MaybeQueryParam Integer)
                                               :> UVerb 'GET '[HTML] [ WithStatus 403 RawHtml
                                                                     , WithStatus 200 RawHtml
                                                                     ]
@@ -119,22 +120,18 @@ data HealthRecordWithComputedValue = HealthRecordWithComputedValue {
   , recordAt          :: String
 } deriving (Eq, Show, Generic, ToJSON, FromJSON)
 
-newtype FilterValue = FilterValue {
-  getFilterValue :: Maybe Day
+newtype MaybeQueryParam a = MaybeQueryParam {
+  getMaybeQueryParam :: Maybe a
 } deriving (Eq, Show, Generic)
 
-instance FromHttpApiData FilterValue where
-  parseQueryParam :: TS.Text -> Either TS.Text FilterValue
-  parseQueryParam = Right . FilterValue . readMaybe . TS.unpack
+instance (FromHttpApiData a, Read a) => FromHttpApiData (MaybeQueryParam a) where
+  parseQueryParam :: FromHttpApiData a => TS.Text -> Either TS.Text (MaybeQueryParam a)
+  parseQueryParam = Right . MaybeQueryParam . readMaybe . TS.unpack
 
 data FilterMode = Past7Day
                 | Past30Day
                 | CustomFilter
                 deriving (Eq, Show, Generic, ToJSON, FromJSON)
-
--- getFilterMode :: Day -> Day -> FilterMode
-
-
 
 healthRecordServerT :: ServerT HealthRecordAPI ReaderHandler
 healthRecordServerT = healthRecordListGetHandler
@@ -145,14 +142,14 @@ healthRecordServerT = healthRecordListGetHandler
                  :<|> healthRecordPutHandler
 
   where
-        -- FIXME healthRecordListGetHandler add date filter
         healthRecordListGetHandler :: Maybe SignInAccount
-                                   -> Maybe FilterValue
-                                   -> Maybe FilterValue
+                                   -> Maybe (MaybeQueryParam Day)
+                                   -> Maybe (MaybeQueryParam Day)
+                                   -> Maybe (MaybeQueryParam Integer)
                                    -> ReaderHandler ( Union '[ WithStatus 403 RawHtml
                                                              , WithStatus 200 RawHtml ] )
-        healthRecordListGetHandler Nothing _ _ = respond =<< liftIO authFailToSignInView
-        healthRecordListGetHandler (Just account) filterFrom filterTo = do
+        healthRecordListGetHandler Nothing _ _ _ = respond =<< liftIO authFailToSignInView
+        healthRecordListGetHandler (Just account) filterFrom filterTo latestRecordValue = do
           currentTime <- liftIO getCurrentTime
           pool <- asks getPool
           let pastWeekFrom = addDays (-6) now
@@ -162,8 +159,9 @@ healthRecordServerT = healthRecordListGetHandler
               navFilterRange = HS.fromList [ ( "now", iso8601Show now )
                                            , ( "pastWeekFrom", iso8601Show pastWeekFrom )
                                            , ( "pastMonthFrom", iso8601Show pastMonthFrom ) ]
-              from = getFilterValue =<< filterFrom
-              to = getFilterValue =<< filterTo
+              from = getMaybeQueryParam =<< filterFrom
+              to = getMaybeQueryParam =<< filterTo
+              latestRecord = latestRecordValue >>= getMaybeQueryParam >>= (\n -> if n < 0 then Nothing else Just n)
               queryRange :: HS.HashMap TL.Text (Maybe Day)
               queryRange = HS.fromList [ ( "from", from )
                                        , ( "to", to ) ]
@@ -176,7 +174,7 @@ healthRecordServerT = healthRecordListGetHandler
                         | from == pastWeekFrom && to == now = Past7Day
                         | from == pastMonthFrom && to == now = Past30Day
                         | otherwise = CustomFilter
-          joinedHealthRecordList <- liftIO $ selectHealthRecordList pool account from to now
+          joinedHealthRecordList <- liftIO $ selectHealthRecordList pool account from to now latestRecord
           let context = HS.fromList [ ( "healthRecordList"
                                       , toJSON ( computeBmiAndOthers <$>
                                                  joinedHealthRecordList ) )
@@ -186,6 +184,8 @@ healthRecordServerT = healthRecordListGetHandler
                                       , toJSON queryRange )
                                     , ( "filterMode"
                                       , toJSON filterMode )
+                                    , ( "latestRecord"
+                                      , toJSON latestRecord )
                                     ]
 
           html <- TP.htmlHandler context "/health_record_list.html"
@@ -196,12 +196,14 @@ healthRecordServerT = healthRecordListGetHandler
                                        -> Maybe Day
                                        -> Maybe Day
                                        -> Day
+                                       -> Maybe Integer
                                        -> IO [HealthRecord]
-                selectHealthRecordList pool signInAccount from to now = do
+                selectHealthRecordList pool signInAccount from to now latestRecord = do
                   withResource pool $ \conn -> runBeamPostgres conn $
-                    runSelectReturningList $ select $
+                    -- beam currently not support optional limit
+                    runSelectReturningList $ select $ limit_ (fromMaybe 500 latestRecord) $
                       orderBy_ (\ord -> ( desc_ $  _healthRecordDate ord
-                                        , desc_ $ _healthRecordRecordAt ord )) $ do
+                                          , desc_ $ _healthRecordRecordAt ord )) $ do
                       profile <- all_ $ _healthProfile healthDb
                       healthRecord <- join_ (_healthHealthRecord healthDb) $
                                             (primaryKey profile ==.) . _healthRecordProfileId

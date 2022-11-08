@@ -67,14 +67,31 @@
 <section aria-labelledby="filter-title">
   <h2 id="filter-title">篩選紀錄</h2>
 
-  <a href="/health_record?from={{ navFilterRange['pastWeekFrom'] }}&to={{ navFilterRange['now'] }}">過去七天</a>
-  <a href="/health_record?from={{ navFilterRange['pastMonthFrom'] }}&to={{ navFilterRange['now'] }}">過去三十天</a>
+  <form action="/health_record" method="get" aria-labelledby="自訂區間" role="search">
+    <fieldset>
+      <legend>由日期篩選</legend>
 
-  <form action="/health_record" method="get" aria-labelledby="自訂區間">
-    <label for="custom-filter-from-input" class="custom-filter-label">從</label>
-    <input type="date" name="from" id="custom-filter-from-input" value="{{ queryRange.from}}">
-    <label for="custom-filter-to-input" class="custom-filter-label">到</label>
-    <input type="date" name="to" id="custom-filter-to-input" value="{{ queryRange.to}}">
+      <a href="/health_record?from={{ navFilterRange['pastWeekFrom'] }}&to={{ navFilterRange['now'] }}">過去七天</a>
+      <a href="/health_record?from={{ navFilterRange['pastMonthFrom'] }}&to={{ navFilterRange['now'] }}">過去三十天</a>
+
+      <label for="custom-filter-from-input" class="custom-filter-label">從</label>
+      <input type="date" name="from" id="custom-filter-from-input" value="{{ queryRange.from}}">
+      <label for="custom-filter-to-input" class="custom-filter-label">到</label>
+      <input type="date" name="to" id="custom-filter-to-input" value="{{ queryRange.to}}">
+    </fieldset>
+    <button type="submit">送出</button>
+  </form>
+  <form action="/health_record" method="get" aria-labelledby="自訂區間" role="search">
+    <fieldset>
+
+      <legend>篩選近期紀錄</legend>
+
+      <a href="/health_record?latestRecord=10">最近 10 筆</a>
+      <a href="/health_record?latestRecord=30">最近 30 筆</a>
+
+      <label for="latest-record-input">顯示最近幾筆</label>
+      <input type="number" name="latestRecord" id="latest-record-input" value="{{ latestRecord }}">
+    </fieldset>
     <button type="submit">送出</button>
   </form>
 </section>
