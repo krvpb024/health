@@ -30,18 +30,18 @@ import Data.Fixed
 import Web.FormUrlEncoded
 import Database.Beam.Backend.SQL.BeamExtensions
 import Data.Int
-import Control.Exception
 import qualified Data.Text.Lazy as TL
 import qualified Data.Text as TS
 import Data.Time.Format.ISO8601
-import Control.Monad
 import Text.Read
 import Data.Maybe
+import Utils.ChartType
+import Utils.StandardType
 
 type HealthRecordAPI = "health_record" :> ( AuthProtect "cookie-auth"
                                               :> QueryParam "from" (MaybeQueryParam Day)
                                               :> QueryParam "to" (MaybeQueryParam Day)
-                                              :> QueryParam "latestRecord" (MaybeQueryParam Integer)
+                                              :> QueryParam "latestRecord" (MaybeQueryParam Int)
                                               :> UVerb 'GET '[HTML] [ WithStatus 403 RawHtml
                                                                     , WithStatus 200 RawHtml
                                                                     ]
@@ -113,12 +113,16 @@ data HealthRecordWithComputedValue = HealthRecordWithComputedValue {
     recordId          :: Int32
   , height            :: Double
   , weight            :: Double
-  , bmi               :: Fixed E1
+  , bmi               :: Double
+  , fixedBmi          :: Fixed E1
   , bodyFatPercentage :: Maybe Double
   , waistlineCm       :: Maybe Double
   , recordDate        :: Day
   , recordAt          :: String
 } deriving (Eq, Show, Generic, ToJSON, FromJSON)
+
+getFixedBmi :: HealthRecordWithComputedValue -> Fixed E1
+getFixedBmi h =  realToFrac $ bmi h
 
 newtype MaybeQueryParam a = MaybeQueryParam {
   getMaybeQueryParam :: Maybe a
@@ -145,7 +149,7 @@ healthRecordServerT = healthRecordListGetHandler
         healthRecordListGetHandler :: Maybe SignInAccount
                                    -> Maybe (MaybeQueryParam Day)
                                    -> Maybe (MaybeQueryParam Day)
-                                   -> Maybe (MaybeQueryParam Integer)
+                                   -> Maybe (MaybeQueryParam Int)
                                    -> ReaderHandler ( Union '[ WithStatus 403 RawHtml
                                                              , WithStatus 200 RawHtml ] )
         healthRecordListGetHandler Nothing _ _ _ = respond =<< liftIO authFailToSignInView
@@ -175,19 +179,107 @@ healthRecordServerT = healthRecordListGetHandler
                         | from == pastMonthFrom && to == now = Past30Day
                         | otherwise = CustomFilter
           joinedHealthRecordList <- liftIO $ selectHealthRecordList pool account from to now latestRecord
-          let context = HS.fromList [ ( "healthRecordList"
-                                      , toJSON ( computeBmiAndOthers <$>
-                                                 joinedHealthRecordList ) )
-                                    , ( "navFilterRange"
-                                      , toJSON navFilterRange )
-                                    , ( "queryRange"
-                                      , toJSON queryRange )
-                                    , ( "filterMode"
-                                      , toJSON filterMode )
-                                    , ( "latestRecord"
-                                      , toJSON latestRecord )
+          eitherProfile <- liftIO $ selectProfile pool account
+          let context = HS.fromList [ ( "healthRecordList", toJSON healthRecordList )
+                                    , ( "navFilterRange", toJSON navFilterRange )
+                                    , ( "queryRange", toJSON queryRange )
+                                    , ( "filterMode", toJSON filterMode )
+                                    , ( "latestRecord", toJSON latestRecord )
+                                    , ( "chartCanvas", toJSON chartCanvas )
+                                    , ( "weightChart", toJSON weightChart )
+                                    , ( "bmiChart", toJSON bmiChart )
+                                    , ( "bodyFatPercentageChart", toJSON bodyFatPercentageChart )
+                                    , ( "waistlineCmChart", toJSON waistlineCmChart )
                                     ]
-
+              -- FIXME change this route to either base
+              profile = fromRight' eitherProfile
+              healthRecordList = computeBmiAndOthers <$> joinedHealthRecordList
+              reversedHealthRecordList = reverse healthRecordList
+              dateValues = recordDate <$> reversedHealthRecordList
+              chartCanvas = getChartCanvas $ Chart 1000 600 0.15
+              xValueDataAndLabels = getXValueDataAndLabels chartCanvas dateValues
+              -- weight
+              weightStd = Weight
+              weightValues = weight <$> reversedHealthRecordList
+              weightYValueAndLabels = getYValueDataAndLabels chartCanvas $ weight <$> reversedHealthRecordList
+              weightValuePoints = getValuePoints chartCanvas (fst weightYValueAndLabels) (fst xValueDataAndLabels) (zip dateValues weightValues)
+              weightLevels = getStandardLevels chartCanvas (fst weightYValueAndLabels) weightStd
+              weightChart = ChartWithValue {
+                  chartVTitle = getStdTitle weightStd
+                , chartVAxisStart = canvasXStartPoint chartCanvas
+                , chartVXAxisEnd = canvasXEndPoint chartCanvas
+                , chartVYAxisEnd = canvasYEndPoint chartCanvas
+                , chartVXLabels = snd xValueDataAndLabels
+                , chartVYLabels = snd weightYValueAndLabels
+                , chartVValuePoints = weightValuePoints
+                , chartVValueLine = getValueLine weightValuePoints
+                , chartVLevels = weightLevels
+              }
+              -- bmi
+              bmiStd = Bmi
+              bmiValues = bmi <$> reversedHealthRecordList
+              bmiYValueAndLabels = getYValueDataAndLabels chartCanvas $ bmi <$> reversedHealthRecordList
+              bmiValuePoints = getValuePoints chartCanvas (fst bmiYValueAndLabels) (fst xValueDataAndLabels) (zip dateValues bmiValues)
+              bmiLevels = getStandardLevels chartCanvas (fst bmiYValueAndLabels) bmiStd
+              bmiChart = ChartWithValue {
+                  chartVTitle = getStdTitle bmiStd
+                , chartVAxisStart = canvasXStartPoint chartCanvas
+                , chartVXAxisEnd = canvasXEndPoint chartCanvas
+                , chartVYAxisEnd = canvasYEndPoint chartCanvas
+                , chartVXLabels = snd xValueDataAndLabels
+                , chartVYLabels = snd bmiYValueAndLabels
+                , chartVValuePoints = bmiValuePoints
+                , chartVValueLine = getValueLine bmiValuePoints
+                , chartVLevels = bmiLevels
+              }
+              -- bodyFatPercentage
+              dateValuesHasBodyFatPercentage = recordDate <$> filter (isJust . bodyFatPercentage) reversedHealthRecordList
+              bodyFatPercentageXValueDataAndLabels = getXValueDataAndLabels chartCanvas dateValuesHasBodyFatPercentage
+              bodyFatPercentageStd = if _profileGender profile then MaleBodyFatPercentage
+                                                               else FemaleBodyFatPercentage
+              bodyFatPercentageValues = mapMaybe bodyFatPercentage reversedHealthRecordList
+              bodyFatPercentageYValueDataAndLabels = getYValueDataAndLabels chartCanvas $
+                                                     mapMaybe bodyFatPercentage reversedHealthRecordList
+              bodyFatPercentageValuePoints = getValuePoints chartCanvas
+                                                        (fst bodyFatPercentageYValueDataAndLabels)
+                                                        (fst bodyFatPercentageXValueDataAndLabels)
+                                                        (zip dateValuesHasBodyFatPercentage bodyFatPercentageValues)
+              bodyFatPercentageLevels = getStandardLevels chartCanvas
+                                                          (fst bodyFatPercentageYValueDataAndLabels)
+                                                          bodyFatPercentageStd
+              bodyFatPercentageChart = ChartWithValue {
+                  chartVTitle = getStdTitle bodyFatPercentageStd
+                , chartVAxisStart = canvasXStartPoint chartCanvas
+                , chartVXAxisEnd = canvasXEndPoint chartCanvas
+                , chartVYAxisEnd = canvasYEndPoint chartCanvas
+                , chartVXLabels = snd bodyFatPercentageXValueDataAndLabels
+                , chartVYLabels = snd bodyFatPercentageYValueDataAndLabels
+                , chartVValuePoints = bodyFatPercentageValuePoints
+                , chartVValueLine = getValueLine bodyFatPercentageValuePoints
+                , chartVLevels = bodyFatPercentageLevels
+              }
+              -- waistlineCm
+              dateValuesHasWaistlineCm = recordDate <$> filter (isJust . waistlineCm) reversedHealthRecordList
+              waistlineCmXValueDataAndLabels = getXValueDataAndLabels chartCanvas dateValuesHasWaistlineCm
+              waistlineCmStd = if _profileGender profile then MaleWaistline
+                                                         else FemaleWaistline
+              waistlineCmValues = mapMaybe waistlineCm reversedHealthRecordList
+              waistlineCmYValueDataAndLabels = getYValueDataAndLabels chartCanvas $ mapMaybe waistlineCm reversedHealthRecordList
+              waistlineCmValuePoints = getValuePoints chartCanvas (fst waistlineCmYValueDataAndLabels) (fst waistlineCmXValueDataAndLabels) (zip dateValuesHasWaistlineCm waistlineCmValues)
+              waistlineCmLevels = getStandardLevels chartCanvas
+                                                    (fst waistlineCmYValueDataAndLabels)
+                                                    waistlineCmStd
+              waistlineCmChart = ChartWithValue {
+                  chartVTitle = getStdTitle waistlineCmStd
+                , chartVAxisStart = canvasXStartPoint chartCanvas
+                , chartVXAxisEnd = canvasXEndPoint chartCanvas
+                , chartVYAxisEnd = canvasYEndPoint chartCanvas
+                , chartVXLabels = snd waistlineCmXValueDataAndLabels
+                , chartVYLabels = snd waistlineCmYValueDataAndLabels
+                , chartVValuePoints = waistlineCmValuePoints
+                , chartVValueLine = getValueLine waistlineCmValuePoints
+                , chartVLevels = waistlineCmLevels
+              }
           html <- TP.htmlHandler context "/health_record_list.html"
           respond $ WithStatus @200 html
           where
@@ -196,14 +288,14 @@ healthRecordServerT = healthRecordListGetHandler
                                        -> Maybe Day
                                        -> Maybe Day
                                        -> Day
-                                       -> Maybe Integer
+                                       -> Maybe Int
                                        -> IO [HealthRecord]
                 selectHealthRecordList pool signInAccount from to now latestRecord = do
                   withResource pool $ \conn -> runBeamPostgres conn $
                     -- beam currently not support optional limit
-                    runSelectReturningList $ select $ limit_ (fromMaybe 500 latestRecord) $
+                    runSelectReturningList $ select $ limit_ (fromIntegral $ fromMaybe 500 latestRecord :: Integer) $
                       orderBy_ (\ord -> ( desc_ $  _healthRecordDate ord
-                                          , desc_ $ _healthRecordRecordAt ord )) $ do
+                                        , desc_ $ _healthRecordRecordAt ord )) $ do
                       profile <- all_ $ _healthProfile healthDb
                       healthRecord <- join_ (_healthHealthRecord healthDb) $
                                             (primaryKey profile ==.) . _healthRecordProfileId
@@ -212,25 +304,25 @@ healthRecordServerT = healthRecordListGetHandler
                                 (Nothing,   Nothing) -> _healthRecordDate healthRecord <=. val_ now
                                 (Nothing,   Just to) -> _healthRecordDate healthRecord <=. val_ to
                                 (Just from, Nothing) -> _healthRecordDate healthRecord >=. val_ from
-                                (Just from, Just to) -> (&&.) (_healthRecordDate healthRecord >=. val_ from) $
-                                                              _healthRecordDate healthRecord <=. val_ to
+                                (Just from, Just to) -> (_healthRecordDate healthRecord >=. val_ from) &&.
+                                                        (_healthRecordDate healthRecord <=. val_ to)
                       pure healthRecord
-
 
                 computeBmiAndOthers :: HealthRecord
                                     -> HealthRecordWithComputedValue
                 computeBmiAndOthers healthRecord =
                   HealthRecordWithComputedValue {
-                      recordId = _healthRecordId healthRecord
-                    , height = _healthRecordHeight healthRecord
-                    , weight = _healthRecordWeight healthRecord
-                    , bmi = realToFrac bmiValue :: Fixed E1
-                    , bodyFatPercentage = _healthRecordBodyFatPercentage healthRecord
-                    , waistlineCm = _healthRecordWaistlineCm healthRecord
-                    , recordDate = _healthRecordDate healthRecord
-                    , recordAt = formatTime
-                                 defaultTimeLocale "%F" $
-                                 _healthRecordRecordAt healthRecord
+                    recordId = _healthRecordId healthRecord
+                  , height = _healthRecordHeight healthRecord
+                  , weight = _healthRecordWeight healthRecord
+                  , bmi = bmiValue
+                  , fixedBmi = realToFrac bmiValue :: Fixed E1
+                  , bodyFatPercentage = _healthRecordBodyFatPercentage healthRecord
+                  , waistlineCm = _healthRecordWaistlineCm healthRecord
+                  , recordDate = _healthRecordDate healthRecord
+                  , recordAt = formatTime
+                                defaultTimeLocale "%F" $
+                                _healthRecordRecordAt healthRecord
                   }
                   where w = _healthRecordWeight healthRecord
                         h = _healthRecordHeight healthRecord / 100
@@ -252,9 +344,9 @@ healthRecordServerT = healthRecordListGetHandler
             Right profile -> do
               currentTime <- liftIO getZonedTime
               let context = HS.fromList [ ( "currentDate"
-                                            , toJSON $ formatTime defaultTimeLocale "%F" currentTime )
+                                          , toJSON $ formatTime defaultTimeLocale "%F" currentTime )
                                         , ( "height"
-                                            , toJSON $ _profileHeight profile ) ]
+                                          , toJSON $ _profileHeight profile ) ]
               html <- TP.htmlHandler context "/health_record_form.html"
               respond $ WithStatus @200 html
 
@@ -286,14 +378,14 @@ healthRecordServerT = healthRecordListGetHandler
                     [healthRecord] <- withResource pool $ \conn -> runBeamPostgres conn $
                       runInsertReturningList $ insert (_healthHealthRecord healthDb) $
                       insertExpressions [ HealthRecord {
-                          _healthRecordId = default_
-                        , _healthRecordProfileId = val_ $ primaryKey profile
-                        , _healthRecordHeight = val_ $ postHeight postHealthRecordData
-                        , _healthRecordWeight = val_ $ postWeight postHealthRecordData
-                        , _healthRecordBodyFatPercentage = val_ $ postBodyFatPercentage postHealthRecordData
-                        , _healthRecordWaistlineCm = val_ $ postWaistlineCm postHealthRecordData
-                        , _healthRecordDate = val_ $ postDate postHealthRecordData
-                        , _healthRecordRecordAt = default_
+                        _healthRecordId = default_
+                      , _healthRecordProfileId = val_ $ primaryKey profile
+                      , _healthRecordHeight = val_ $ postHeight postHealthRecordData
+                      , _healthRecordWeight = val_ $ postWeight postHealthRecordData
+                      , _healthRecordBodyFatPercentage = val_ $ postBodyFatPercentage postHealthRecordData
+                      , _healthRecordWaistlineCm = val_ $ postWaistlineCm postHealthRecordData
+                      , _healthRecordDate = val_ $ postDate postHealthRecordData
+                      , _healthRecordRecordAt = default_
                       } ]
                     pure (_healthRecordId healthRecord)
 
@@ -326,11 +418,11 @@ healthRecordServerT = healthRecordListGetHandler
               respond $ WithStatus @303 red
             _ -> throwError err500
 
-        healthRecordGetEditFormHandler ::Maybe SignInAccount
-                                  -> Int32
-                                  -> ReaderHandler ( Union '[ WithStatus 403 RawHtml
-                                                            , WithStatus 404 RawHtml
-                                                            , WithStatus 200 RawHtml ] )
+        healthRecordGetEditFormHandler :: Maybe SignInAccount
+                                       -> Int32
+                                       -> ReaderHandler ( Union '[ WithStatus 403 RawHtml
+                                                                 , WithStatus 404 RawHtml
+                                                                 , WithStatus 200 RawHtml ] )
         healthRecordGetEditFormHandler Nothing _ = respond =<< liftIO authFailToSignInView
         healthRecordGetEditFormHandler (Just account) recordId = do
           pool <- asks getPool
@@ -350,11 +442,11 @@ healthRecordServerT = healthRecordListGetHandler
             Right record -> do
               let context = HS.fromList [ ( "healthRecordId", toJSON $ _healthRecordId record)
                                         , ( "healthRecord", toJSON PostHealthRecordData {
-                                                                       postHeight = _healthRecordHeight record
-                                                                     , postWeight = _healthRecordWeight record
-                                                                     , postBodyFatPercentage = _healthRecordBodyFatPercentage record
-                                                                     , postWaistlineCm = _healthRecordWaistlineCm record
-                                                                     , postDate = _healthRecordDate record
+                                                                     postHeight = _healthRecordHeight record
+                                                                   , postWeight = _healthRecordWeight record
+                                                                   , postBodyFatPercentage = _healthRecordBodyFatPercentage record
+                                                                   , postWaistlineCm = _healthRecordWaistlineCm record
+                                                                   , postDate = _healthRecordDate record
                                                                    } )
                                         ]
               html <- TP.htmlHandler context "/health_record_form_edit.html"
@@ -392,11 +484,11 @@ healthRecordServerT = healthRecordListGetHandler
                     updateHealthRecord pool healthRecord putHealthRecordData =
                       withResource pool $ \conn -> runBeamPostgres conn $ do
                         runUpdate $ save (_healthHealthRecord healthDb) ( healthRecord {
-                            _healthRecordHeight = postHeight putHealthRecordData
-                          , _healthRecordWeight = postWeight putHealthRecordData
-                          , _healthRecordBodyFatPercentage = postBodyFatPercentage putHealthRecordData
-                          , _healthRecordWaistlineCm = postWaistlineCm putHealthRecordData
-                          , _healthRecordDate = postDate putHealthRecordData
+                          _healthRecordHeight = postHeight putHealthRecordData
+                        , _healthRecordWeight = postWeight putHealthRecordData
+                        , _healthRecordBodyFatPercentage = postBodyFatPercentage putHealthRecordData
+                        , _healthRecordWaistlineCm = postWaistlineCm putHealthRecordData
+                        , _healthRecordDate = postDate putHealthRecordData
                         } )
             _ -> throwError err500
 
@@ -414,7 +506,7 @@ selectProfile pool signInAccount = do
     runSelectReturningOne $ select $
       filter_ (((AccountId . val_ . accountId) signInAccount ==.) . _profileAccountId) $
       all_ $ _healthProfile healthDb
-  pure $ maybeToRight err403 { errBody = TLE.encodeUtf8 "你必須先建立個人檔案"} profile
+  pure $ maybeToRight err403 { errBody = TLE.encodeUtf8 "你必須先建立個人檔案" } profile
 
 selectHealthRecord :: Pool Connection
                    -> Int32

@@ -1,4 +1,4 @@
-{% extends "layout.html" %}
+{%- extends "layout.html" -%}
 
 {%- block title -%}我的記錄{%- endblock -%}
 
@@ -7,60 +7,189 @@
 {%- endblock -%}
 
 {%- block content -%}
+{%- set bmiChartId = "bmi" -%}
+{%- set bodyFatPercentageChartId = "body-fat-percentage" -%}
+{%- set waistlineCmChartId = "waistline-cm" -%}
+{%- set weightChartId = "weight" -%}
 <main>
   <section aria-labelledby="base-title">
     <h1 id="base-title">我的記錄</h1>
+    <section>
+      <h2 id="chart-title">健康紀錄圖表</h2>
+      <ul>
+        <li>
+          <a href="#weight-chart-section">體重</a>
+        </li>
+        <li>
+          <a href="#bmi-chart-section">BMI</a>
+        </li>
+        <li>
+          <a href="#body-fat-percentage-chart-section">體脂率</a>
+        </li>
+        <li>
+          <a href="#waistline-cm-chart-section">腰圍</a>
+        </li>
+      </ul>
 
-    <table class="record-table">
-      <caption class="caption">健康記錄</caption>
+      {%- macro generateChart(chartData, chartId) -%}
+      {%- if chartData  -%}
+      <svg width="{{ chartCanvas.canvasWidth }}" height="{{ chartCanvas.canvasHeight }}"
+        viewBox="0 0 {{ chartCanvas.canvasWidth }} {{ chartCanvas.canvasHeight }}"
+        aria-labelledby="{{ chartId }}-chart-title">
+        <title id="{{ chartId }}-chart-title">{{ chartData.chartVTitle }}變化線圖</title>
+        <text x="{{ chartCanvas.canvasWidth / 2 }}" y="20" text-anchor="middle"
+          dominant-baseline="middle">{{ chartData.chartVTitle }}變化線圖</text>
 
-      <thead>
-        <tr>
-          <th scope="col">日期</th>
-          <th scope="col">身高（cm）</th>
-          <th scope="col">體重（kg）</th>
-          <th scope="col">BMI</th>
-          <th scope="col">體脂率（%）</th>
-          <th scope="col">腰圍（cm）</th>
-          <th scope="col">資料操作</th>
-        </tr>
-      </thead>
-
-      <tbody>
-        {%- for healthRecord in healthRecordList -%}
-        <tr>
-          <td>{{ healthRecord.recordDate }}</td>
-          <td>{{ healthRecord.height }}</td>
-          <td>{{ healthRecord.weight }}</td>
-          <td>{{ healthRecord.bmi }}</td>
-          <td>
-            {%- if healthRecord.bodyFatPercentage -%}
-            {{ healthRecord.bodyFatPercentage }}%
-            {%- endif -%}
-          </td>
-          <td>
-            {%- if healthRecord.waistlineCm -%}
-            {{ healthRecord.waistlineCm }}
-            {%- endif -%}
-          </td>
-          <td>
-            <a href="/health_record/{{ healthRecord['recordId'] }}/form">編輯</a>
-
-            <details>
-              <summary class="delete-summary">刪除</summary>
-
-              <p id="delete-form-title">確認刪除記錄</p>
-
-              <form action="/health_record/{{ healthRecord['recordId'] }}/delete" method="post"
-                aria-labelledby="delete-form-title">
-                <button type="submit">確認</button>
-              </form>
-            </details>
-          </td>
-        </tr>
+        {%- for level in chartData.chartVLevels -%}
+        <g aria-labelledby="value-range-health">
+          <rect x="{{ level.levelItemPoint.getX }}" y="{{ level.levelItemPoint.getY }}"
+            width="{{ level.levelItemWidth }}" height="{{ level.levelItemHeight }}" fill="{{ level.levelItemColor }}">
+          </rect>
+          <text id="value-range-health" x="{{ level.levelItemTitlePoint.getX }}"
+            y="{{ level.levelItemTitlePoint.getY }}" font-size="1.3rem" text-anchor="middle" dominant-baseline="middle"
+            opacity=".3">
+            {{ level.levelItemTitle }}
+          </text>
+        </g>
         {%- endfor -%}
-      </tbody>
-    </table>
+
+        <g id="x-axis">
+          <text id="{{ chartId }}-chart-x-axis-scale-label" font-size="1.5rem" dominant-baseline="middle"
+            transform="translate(10 0)" x="{{ chartCanvas.canvasXEndPoint }}" y="{{ chartCanvas.canvasYStartPoint }}">
+            日期
+          </text>
+
+          <g id="y-axis-arrow-graph" fill="#000000" stroke="#000000" dominant-baseline="middle" stroke-width="5">
+            <line x1="{{ chartCanvas.canvasXStartPoint }}" y1="{{ chartCanvas.canvasYStartPoint }}"
+              x2="{{ chartCanvas.canvasXEndPoint }}" y2="{{ chartCanvas.canvasYStartPoint }}" stroke-linecap="square">
+            </line>
+          </g>
+
+          <g id="x-axis-tick-value-list" font-size=".8rem" writing-mode="vertical-rl">
+            {%- for label in chartData.chartVXLabels -%}
+            <g>
+              <text x="{{ label[1] }}" y="{{ chartCanvas.canvasYStartPoint }}" text-anchor="start"
+                dominant-baseline="middle" font-size=".8rem" transform="translate(0 15)">
+                {{ label[0] }}
+              </text>
+            </g>
+            {%- endfor -%}
+          </g>
+        </g>
+
+        <g id="y-axis">
+          <text id="{{ chartId }}-chart-y-axis-scale-label" text-anchor="middle" dominant-baseline="end"
+            font-size="1.5rem" transform="translate(0 -20)" x="{{ chartCanvas.canvasXStartPoint }}"
+            y="{{ chartCanvas.canvasYEndPoint }}">
+            {{ chartData.chartVTitle }}
+          </text>
+
+          <g id="y-axis-arrow-graph" fill="#000000" stroke="#000000" dominant-baseline="middle" stroke-width="5">
+            <line x1="{{ chartCanvas.canvasXStartPoint }}" y1="{{ chartCanvas.canvasYStartPoint }}"
+              x2="{{ chartCanvas.canvasXStartPoint }}" y2="{{ chartCanvas.canvasYEndPoint }}" stroke-linecap="square">
+            </line>
+          </g>
+        </g>
+
+        <g id="y-axis-tick-value-list">
+          {%- for label in chartData.chartVYLabels -%}
+          <g>
+            <text x="{{ chartCanvas.canvasXStartPoint }}" y="{{ label[1] }}" text-anchor="end"
+              dominant-baseline="middle" font-size=".8rem" transform="translate(-10 0)">
+              {{ label[0] }}
+            </text>
+            <line x1="{{ chartCanvas.canvasXStartPoint }}" y1="{{ label[1] }}" x2="{{ chartCanvas.canvasXEndPoint }}"
+              y2="{{ label[1] }}" stroke="#000000" stroke-width=".1"></line>
+          </g>
+          {%- endfor -%}
+        </g>
+
+        <g>
+          <polyline points="{{ chartData.chartVValueLine }}" fill="none" stroke="#000000">
+          </polyline>
+
+          {%- for dataPoint in chartData.chartVValuePoints -%}
+          <circle cx="{{ dataPoint.getX }}" cy="{{ dataPoint.getY }}" r="5" fill="#ffffff" stroke="#000000"
+            stroke-width="2"></circle>
+          {%- endfor -%}
+        </g>
+      </svg>
+      {%- else -%}
+      <h3 id="{{ chartId }}-chart-title">
+        {{ chartName }}變化線圖
+      </h3>
+      <p>資料筆數不足，無法以圖表呈現。</p>
+      {%- endif -%}
+      {%- endmacro -%}
+
+      <section id="{{ bmiChartId }}-chart-section">
+        {{ generateChart(bmiChart, bmiChartId) }}
+      </section>
+      <section id="{{ bodyFatPercentageChartId }}-chart-section">
+        {{ generateChart(bodyFatPercentageChart, bodyFatPercentageChartId) }}
+      </section>
+      <section id="{{ waistlineCmChartId }}-chart-section">
+        {{ generateChart(waistlineCmChart, waistlineCmChartId) }}
+      </section>
+      <section id="{{ weightChartId }}-chart-section">
+        {{ generateChart(weightChart, weightChartId) }}
+      </section>
+    </section>
+
+    <section>
+      <h2>健康記錄表格</h2>
+
+      <table class="record-table">
+        <caption class="caption">健康記錄</caption>
+
+        <thead>
+          <tr>
+            <th scope="col">日期</th>
+            <th scope="col">身高（cm）</th>
+            <th scope="col">體重（kg）</th>
+            <th scope="col">BMI</th>
+            <th scope="col">體脂率（%）</th>
+            <th scope="col">腰圍（cm）</th>
+            <th scope="col">資料操作</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {%- for healthRecord in healthRecordList -%}
+          <tr>
+            <td>{{ healthRecord.recordDate }}</td>
+            <td>{{ healthRecord.height }}</td>
+            <td>{{ healthRecord.weight }}</td>
+            <td>{{ healthRecord.fixedBmi }}</td>
+            <td>
+              {%- if healthRecord.bodyFatPercentage -%}
+              {{ healthRecord.bodyFatPercentage }}%
+              {%- endif -%}
+            </td>
+            <td>
+              {%- if healthRecord.waistlineCm -%}
+              {{ healthRecord.waistlineCm }}
+              {%- endif -%}
+            </td>
+            <td>
+              <a href="/health_record/{{ healthRecord['recordId'] }}/form">編輯</a>
+
+              <details>
+                <summary class="delete-summary">刪除</summary>
+
+                <p id="delete-form-title">確認刪除記錄</p>
+
+                <form action="/health_record/{{ healthRecord['recordId'] }}/delete" method="post"
+                  aria-labelledby="delete-form-title">
+                  <button type="submit">確認</button>
+                </form>
+              </details>
+            </td>
+          </tr>
+          {%- endfor -%}
+        </tbody>
+      </table>
+    </section>
   </section>
 </main>
 

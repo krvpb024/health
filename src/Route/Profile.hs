@@ -24,7 +24,6 @@ import Utils.AuthHandler
 import Servant.Server.Experimental.Auth
 import Network.Wai
 import qualified Data.HashMap.Strict as HS
-import Data.Int
 import qualified Data.Text.Lazy as TL
 import GHC.Generics
 import Data.Aeson

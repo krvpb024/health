@@ -5,7 +5,6 @@ module Utils.TemplateHandler where
 
 import Data.HashMap.Strict as HS
 import Data.Hashable
-import System.Exit
 import System.IO
 import System.IO.Error
 import Text.Ginger

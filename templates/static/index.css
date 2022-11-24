@@ -1,4 +1,4 @@
-@layer utils, component, page, base;
+@layer utils, component, page, base, lib;
 
 @layer base {
   html {

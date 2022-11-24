@@ -20,4 +20,40 @@
       display: none;
     }
   }
+
+  #weight-chart-section {
+    display: block flow;
+
+    &:target {
+      display: block flow;
+    }
+
+    @nest :is(:target) ~ & {
+      display: none;
+    }
+  }
+
+  #bmi-chart-section {
+    display: none;
+
+    &:target {
+      display: block flow;
+    }
+  }
+
+  #body-fat-percentage-chart-section {
+    display: none;
+
+    &:target {
+      display: block flow;
+    }
+  }
+
+  #waistline-cm-chart-section {
+    display: none;
+
+    &:target {
+      display: block flow;
+    }
+  }
 }

@@ -121,7 +121,7 @@ healthDb = defaultDbSettings `withDbModification`
                       tableModification {
                         _profileAccountId = AccountId (fieldNamed "account_id")
                       }
-                , _healthHealthRecord =
+                 , _healthHealthRecord =
                       modifyTableFields
                       tableModification {
                         _healthRecordId                = fieldNamed "id"

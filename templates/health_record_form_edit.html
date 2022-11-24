@@ -15,17 +15,17 @@
       <input type="date" name="postDate" id="record-date" required value="{{ healthRecord.postDate }}">
 
       <label for="height-input">身高（cm）：</label>
-      <input type="number" name="postHeight" id="height-input" required value="{{ healthRecord.postHeight }}">
+      <input type="number" name="postHeight" id="height-input" required value="{{ healthRecord.postHeight }}" min="1">
 
       <label for="weight-input">體重（kg）：</label>
-      <input type="number" name="postWeight" id="weight-input" required value="{{ healthRecord.postWeight }}">
+      <input type="number" name="postWeight" id="weight-input" required value="{{ healthRecord.postWeight }}" min="1">
 
       <label for="body-fat-percentage">體脂率（%）：選填</label>
       <input type="number" name="postBodyFatPercentage" id="body-fat-percentage"
-        value="{{ healthRecord.postBodyFatPercentage }}">
+        value="{{ healthRecord.postBodyFatPercentage }}" min="0" max="100">
 
       <label for="waistline-cm">腰圍（cm）：選填</label>
-      <input type="number" name="postWaistlineCm" id="waistline-cm" value="{{ healthRecord.postWaistlineCm }}">
+      <input type="number" name="postWaistlineCm" id="waistline-cm" value="{{ healthRecord.postWaistlineCm }}" min="1">
 
       <button type="submit">送出</button>
     </form>
