@@ -34,8 +34,8 @@ library
       Schema
       Utils.AuthHandler
       Utils.ChartType
+      Utils.IndicatorType
       Utils.ReaderHandler
-      Utils.StandardType
       Utils.TemplateHandler
   other-modules:
       Paths_health

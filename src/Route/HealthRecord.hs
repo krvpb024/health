@@ -36,7 +36,7 @@ import Data.Time.Format.ISO8601
 import Text.Read
 import Data.Maybe
 import Utils.ChartType
-import Utils.StandardType
+import Utils.IndicatorType
 
 type HealthRecordAPI = "health_record" :> ( AuthProtect "cookie-auth"
                                               :> QueryParam "from" (MaybeQueryParam Day)
@@ -102,12 +102,9 @@ instance FromForm PostHealthRecordData where
   fromForm f = PostHealthRecordData
     <$> parseUnique "postHeight" f
     <*> parseUnique "postWeight" f
-    <*> (optionalDoubleToMaybe <$> parseUnique "postBodyFatPercentage" f)
-    <*> (optionalDoubleToMaybe <$> parseUnique "postWaistlineCm" f)
+    <*> (readMaybe <$> parseUnique "postBodyFatPercentage" f)
+    <*> (readMaybe <$> parseUnique "postWaistlineCm" f)
     <*> parseUnique "postDate" f
-
-    where optionalDoubleToMaybe :: String -> Maybe Double
-          optionalDoubleToMaybe = readMaybe
 
 data HealthRecordWithComputedValue = HealthRecordWithComputedValue {
     recordId          :: Int32
@@ -124,6 +121,9 @@ data HealthRecordWithComputedValue = HealthRecordWithComputedValue {
 getFixedBmi :: HealthRecordWithComputedValue -> Fixed E1
 getFixedBmi h =  realToFrac $ bmi h
 
+-- need this newtype because empty input field will get empty String
+-- FromHttpApiData Maybe instance will throw error when encounter empty String from form
+-- need newtype to change the behavior to handle empty input
 newtype MaybeQueryParam a = MaybeQueryParam {
   getMaybeQueryParam :: Maybe a
 } deriving (Eq, Show, Generic)
@@ -146,6 +146,7 @@ healthRecordServerT = healthRecordListGetHandler
                  :<|> healthRecordPutHandler
 
   where
+        -- FIXME change this route to either base
         healthRecordListGetHandler :: Maybe SignInAccount
                                    -> Maybe (MaybeQueryParam Day)
                                    -> Maybe (MaybeQueryParam Day)
@@ -162,22 +163,27 @@ healthRecordServerT = healthRecordListGetHandler
               navFilterRange :: HS.HashMap TL.Text String
               navFilterRange = HS.fromList [ ( "now", iso8601Show now )
                                            , ( "pastWeekFrom", iso8601Show pastWeekFrom )
-                                           , ( "pastMonthFrom", iso8601Show pastMonthFrom ) ]
+                                           , ( "pastMonthFrom", iso8601Show pastMonthFrom )
+                                           ]
               from = getMaybeQueryParam =<< filterFrom
               to = getMaybeQueryParam =<< filterTo
-              latestRecord = latestRecordValue >>= getMaybeQueryParam >>= (\n -> if n < 0 then Nothing else Just n)
+              latestRecord = latestRecordValue >>=
+                             getMaybeQueryParam >>=
+                             (\n -> if n < 0 then Nothing
+                                             else Just n)
               queryRange :: HS.HashMap TL.Text (Maybe Day)
               queryRange = HS.fromList [ ( "from", from )
-                                       , ( "to", to ) ]
+                                       , ( "to", to )
+                                       ]
               filterMode = getFilterMode from to
                 where
                       getFilterMode :: Maybe Day -> Maybe Day -> FilterMode
-                      getFilterMode Nothing _ = CustomFilter
-                      getFilterMode _ Nothing = CustomFilter
+                      getFilterMode Nothing     _            = CustomFilter
+                      getFilterMode _           Nothing      = CustomFilter
                       getFilterMode (Just from) (Just to)
-                        | from == pastWeekFrom && to == now = Past7Day
+                        | from == pastWeekFrom  && to == now = Past7Day
                         | from == pastMonthFrom && to == now = Past30Day
-                        | otherwise = CustomFilter
+                        | otherwise                          = CustomFilter
           joinedHealthRecordList <- liftIO $ selectHealthRecordList pool account from to now latestRecord
           eitherProfile <- liftIO $ selectProfile pool account
           let context = HS.fromList [ ( "healthRecordList", toJSON healthRecordList )
@@ -191,95 +197,75 @@ healthRecordServerT = healthRecordListGetHandler
                                     , ( "bodyFatPercentageChart", toJSON bodyFatPercentageChart )
                                     , ( "waistlineCmChart", toJSON waistlineCmChart )
                                     ]
-              -- FIXME change this route to either base
               profile = fromRight' eitherProfile
+              gender = _profileGender profile
+              birthDate =  _profileBirthDate profile
+              ageAndMonth = divMod (cdMonths $ diffGregorianDurationClip now (_profileBirthDate profile)) 12
+              age = (fromInteger $ fst ageAndMonth :: Double) + ((fromInteger $ snd ageAndMonth :: Double) / 12)
               healthRecordList = computeBmiAndOthers <$> joinedHealthRecordList
               reversedHealthRecordList = reverse healthRecordList
               dateValues = recordDate <$> reversedHealthRecordList
               chartCanvas = getChartCanvas $ Chart 1000 600 0.15
               xValueDataAndLabels = getXValueDataAndLabels chartCanvas dateValues
               -- weight
-              weightStd = Weight
+              weightIndicator = Weight
               weightValues = weight <$> reversedHealthRecordList
-              weightYValueAndLabels = getYValueDataAndLabels chartCanvas $ weight <$> reversedHealthRecordList
-              weightValuePoints = getValuePoints chartCanvas (fst weightYValueAndLabels) (fst xValueDataAndLabels) (zip dateValues weightValues)
-              weightLevels = getStandardLevels chartCanvas (fst weightYValueAndLabels) weightStd
-              weightChart = ChartWithValue {
-                  chartVTitle = getStdTitle weightStd
-                , chartVAxisStart = canvasXStartPoint chartCanvas
-                , chartVXAxisEnd = canvasXEndPoint chartCanvas
-                , chartVYAxisEnd = canvasYEndPoint chartCanvas
-                , chartVXLabels = snd xValueDataAndLabels
-                , chartVYLabels = snd weightYValueAndLabels
-                , chartVValuePoints = weightValuePoints
-                , chartVValueLine = getValueLine weightValuePoints
-                , chartVLevels = weightLevels
-              }
+              weightYValueAndLabels = getYValueDataAndLabels chartCanvas $
+                                      weight <$> reversedHealthRecordList
+              weightValuePoints = getValuePoints chartCanvas
+                                                 (fst <$> weightYValueAndLabels)
+                                                 (fst <$> xValueDataAndLabels)
+                                                 (zip dateValues weightValues)
+              weightLevels = getChartIndicatorLevels gender age chartCanvas
+                                               (fst <$> weightYValueAndLabels)
+                                               weightIndicator
+              weightChart = generateChartWithValue chartCanvas weightIndicator weightYValueAndLabels xValueDataAndLabels weightValuePoints weightLevels
               -- bmi
-              bmiStd = Bmi
+              bmiIndicator = Bmi
               bmiValues = bmi <$> reversedHealthRecordList
-              bmiYValueAndLabels = getYValueDataAndLabels chartCanvas $ bmi <$> reversedHealthRecordList
-              bmiValuePoints = getValuePoints chartCanvas (fst bmiYValueAndLabels) (fst xValueDataAndLabels) (zip dateValues bmiValues)
-              bmiLevels = getStandardLevels chartCanvas (fst bmiYValueAndLabels) bmiStd
-              bmiChart = ChartWithValue {
-                  chartVTitle = getStdTitle bmiStd
-                , chartVAxisStart = canvasXStartPoint chartCanvas
-                , chartVXAxisEnd = canvasXEndPoint chartCanvas
-                , chartVYAxisEnd = canvasYEndPoint chartCanvas
-                , chartVXLabels = snd xValueDataAndLabels
-                , chartVYLabels = snd bmiYValueAndLabels
-                , chartVValuePoints = bmiValuePoints
-                , chartVValueLine = getValueLine bmiValuePoints
-                , chartVLevels = bmiLevels
-              }
+              bmiYValueAndLabels = getYValueDataAndLabels chartCanvas $
+                                   bmi <$> reversedHealthRecordList
+              bmiValuePoints = getValuePoints chartCanvas
+                                              (fst <$> bmiYValueAndLabels)
+                                              (fst <$> xValueDataAndLabels)
+                                              (zip dateValues bmiValues)
+              bmiLevels = getChartIndicatorLevels gender age chartCanvas (fst <$> bmiYValueAndLabels) bmiIndicator
+              bmiChart = generateChartWithValue chartCanvas bmiIndicator bmiYValueAndLabels xValueDataAndLabels bmiValuePoints bmiLevels
               -- bodyFatPercentage
-              dateValuesHasBodyFatPercentage = recordDate <$> filter (isJust . bodyFatPercentage) reversedHealthRecordList
-              bodyFatPercentageXValueDataAndLabels = getXValueDataAndLabels chartCanvas dateValuesHasBodyFatPercentage
-              bodyFatPercentageStd = if _profileGender profile then MaleBodyFatPercentage
-                                                               else FemaleBodyFatPercentage
+              dateValuesHasBodyFatPercentage = recordDate <$>
+                                               filter (isJust . bodyFatPercentage) reversedHealthRecordList
+              bodyFatPercentageXValueDataAndLabels = getXValueDataAndLabels chartCanvas
+                                                                            dateValuesHasBodyFatPercentage
+              bodyFatPercentageIndicator = BodyFatPercentage
               bodyFatPercentageValues = mapMaybe bodyFatPercentage reversedHealthRecordList
               bodyFatPercentageYValueDataAndLabels = getYValueDataAndLabels chartCanvas $
                                                      mapMaybe bodyFatPercentage reversedHealthRecordList
               bodyFatPercentageValuePoints = getValuePoints chartCanvas
-                                                        (fst bodyFatPercentageYValueDataAndLabels)
-                                                        (fst bodyFatPercentageXValueDataAndLabels)
-                                                        (zip dateValuesHasBodyFatPercentage bodyFatPercentageValues)
-              bodyFatPercentageLevels = getStandardLevels chartCanvas
-                                                          (fst bodyFatPercentageYValueDataAndLabels)
-                                                          bodyFatPercentageStd
-              bodyFatPercentageChart = ChartWithValue {
-                  chartVTitle = getStdTitle bodyFatPercentageStd
-                , chartVAxisStart = canvasXStartPoint chartCanvas
-                , chartVXAxisEnd = canvasXEndPoint chartCanvas
-                , chartVYAxisEnd = canvasYEndPoint chartCanvas
-                , chartVXLabels = snd bodyFatPercentageXValueDataAndLabels
-                , chartVYLabels = snd bodyFatPercentageYValueDataAndLabels
-                , chartVValuePoints = bodyFatPercentageValuePoints
-                , chartVValueLine = getValueLine bodyFatPercentageValuePoints
-                , chartVLevels = bodyFatPercentageLevels
-              }
+                                                        (fst <$> bodyFatPercentageYValueDataAndLabels)
+                                                        (fst <$> bodyFatPercentageXValueDataAndLabels)
+                                                        (zip dateValuesHasBodyFatPercentage
+                                                             bodyFatPercentageValues)
+              bodyFatPercentageLevels = getChartIndicatorLevels gender age chartCanvas
+                                                          (fst <$> bodyFatPercentageYValueDataAndLabels)
+                                                          bodyFatPercentageIndicator
+              bodyFatPercentageChart = generateChartWithValue chartCanvas bodyFatPercentageIndicator bodyFatPercentageYValueDataAndLabels bodyFatPercentageXValueDataAndLabels bodyFatPercentageValuePoints bodyFatPercentageLevels
               -- waistlineCm
-              dateValuesHasWaistlineCm = recordDate <$> filter (isJust . waistlineCm) reversedHealthRecordList
+              dateValuesHasWaistlineCm = recordDate <$>
+                                         filter (isJust . waistlineCm) reversedHealthRecordList
               waistlineCmXValueDataAndLabels = getXValueDataAndLabels chartCanvas dateValuesHasWaistlineCm
-              waistlineCmStd = if _profileGender profile then MaleWaistline
-                                                         else FemaleWaistline
+              waistlineCmIndicator = WaistlineCm
               waistlineCmValues = mapMaybe waistlineCm reversedHealthRecordList
-              waistlineCmYValueDataAndLabels = getYValueDataAndLabels chartCanvas $ mapMaybe waistlineCm reversedHealthRecordList
-              waistlineCmValuePoints = getValuePoints chartCanvas (fst waistlineCmYValueDataAndLabels) (fst waistlineCmXValueDataAndLabels) (zip dateValuesHasWaistlineCm waistlineCmValues)
-              waistlineCmLevels = getStandardLevels chartCanvas
-                                                    (fst waistlineCmYValueDataAndLabels)
-                                                    waistlineCmStd
-              waistlineCmChart = ChartWithValue {
-                  chartVTitle = getStdTitle waistlineCmStd
-                , chartVAxisStart = canvasXStartPoint chartCanvas
-                , chartVXAxisEnd = canvasXEndPoint chartCanvas
-                , chartVYAxisEnd = canvasYEndPoint chartCanvas
-                , chartVXLabels = snd waistlineCmXValueDataAndLabels
-                , chartVYLabels = snd waistlineCmYValueDataAndLabels
-                , chartVValuePoints = waistlineCmValuePoints
-                , chartVValueLine = getValueLine waistlineCmValuePoints
-                , chartVLevels = waistlineCmLevels
-              }
+              waistlineCmYValueDataAndLabels = getYValueDataAndLabels chartCanvas $
+                                               mapMaybe waistlineCm reversedHealthRecordList
+              waistlineCmValuePoints = getValuePoints chartCanvas
+                                                      (fst <$> waistlineCmYValueDataAndLabels)
+                                                      (fst <$> waistlineCmXValueDataAndLabels)
+                                                      (zip dateValuesHasWaistlineCm
+                                                           waistlineCmValues)
+              waistlineCmLevels = getChartIndicatorLevels gender age chartCanvas
+                                                    (fst <$> waistlineCmYValueDataAndLabels)
+                                                    waistlineCmIndicator
+              waistlineCmChart = generateChartWithValue chartCanvas waistlineCmIndicator waistlineCmYValueDataAndLabels waistlineCmXValueDataAndLabels waistlineCmValuePoints waistlineCmLevels
           html <- TP.htmlHandler context "/health_record_list.html"
           respond $ WithStatus @200 html
           where
@@ -292,8 +278,9 @@ healthRecordServerT = healthRecordListGetHandler
                                        -> IO [HealthRecord]
                 selectHealthRecordList pool signInAccount from to now latestRecord = do
                   withResource pool $ \conn -> runBeamPostgres conn $
-                    -- beam currently not support optional limit
-                    runSelectReturningList $ select $ limit_ (fromIntegral $ fromMaybe 500 latestRecord :: Integer) $
+                    runSelectReturningList $ select $
+                      -- beam currently not support optional limit
+                      limit_ (fromIntegral $ fromMaybe 500 latestRecord :: Integer) $
                       orderBy_ (\ord -> ( desc_ $  _healthRecordDate ord
                                         , desc_ $ _healthRecordRecordAt ord )) $ do
                       profile <- all_ $ _healthProfile healthDb

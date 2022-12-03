@@ -8,11 +8,12 @@ import qualified Data.HashMap.Strict as HS
 import qualified Data.Text as T
 import Data.Time
 import qualified Data.Text.Lazy as TL
-import Utils.StandardType
+import Utils.IndicatorType
 import Data.Range
 import Servant
 import Control.Exception
 import Data.ByteString.Lazy.UTF8 as BLU
+import Schema
 
 data Chart = Chart { chartWidth   :: Double
                    , chartHeight  :: Double
@@ -52,8 +53,11 @@ data ChartPoint = ChartPoint { getX :: Double
 
 newtype XValueData = XValueData { xScale :: Double }
 
-getXValueDataAndLabels :: ChartCanvas -> [Day] -> (XValueData, [(Day, Double)])
-getXValueDataAndLabels (ChartCanvas w _ xsp xep ysp _ xl _) ds = (
+getXValueDataAndLabels :: ChartCanvas
+                       -> [Day]
+                       -> Maybe (XValueData, [(Day, Double)])
+getXValueDataAndLabels _                                 [] = Nothing
+getXValueDataAndLabels (ChartCanvas _ _ xsp xep _ _ _ _) ds = Just (
     XValueData scaleValue
   , (\(i, d) -> (d, xsp + i * scaleValue)) <$>
     zip ([0..] :: [Double]) ds
@@ -61,7 +65,10 @@ getXValueDataAndLabels (ChartCanvas w _ xsp xep ysp _ xl _) ds = (
   where
         scaleValue = (xep - xsp) / (fromIntegral $ Prelude.length ds - 1 :: Double)
 
-getXValuePoint :: ChartCanvas -> XValueData -> Double -> Double
+getXValuePoint :: ChartCanvas
+               -> XValueData
+               -> Double
+               -> Double
 getXValuePoint (ChartCanvas _ _ xsp _ _ _ _ _) (XValueData scale) i = xsp + i * scale
 
 data YValueData = YValueData {
@@ -69,8 +76,11 @@ data YValueData = YValueData {
   , yMax         :: Double
   }
 
-getYValueDataAndLabels :: ChartCanvas -> [Double] -> (YValueData, [(Double, Double)])
-getYValueDataAndLabels cv@(ChartCanvas w h xsp xep ysp yep xl yl) ds = (yvd, yLabels)
+getYValueDataAndLabels :: ChartCanvas
+                       -> [Double]
+                       -> Maybe (YValueData, [(Double, Double)])
+getYValueDataAndLabels _                                [] = Nothing
+getYValueDataAndLabels (ChartCanvas _ _ _ _ ysp _ _ yl) ds = Just (yvd, yLabels)
   where
         minV = minimum ds
         maxV = maximum ds
@@ -83,11 +93,21 @@ getYValueDataAndLabels cv@(ChartCanvas w h xsp xep ysp yep xl yl) ds = (yvd, yLa
         yvd = YValueData paddingMinValue paddingMaxValue
         yLabels = (\(i, v) -> (v, ysp + i * scaleValue)) <$> zip ([0..] :: [Double]) paddingValueList
 
-getYValuePoint :: ChartCanvas -> YValueData ->  Double -> Double
+getYValuePoint :: ChartCanvas
+               -> YValueData
+               -> Double
+               -> Double
 getYValuePoint (ChartCanvas _ _ _ _ ysp _ _ yl) (YValueData min max) v = ysp + ((v - min) / (max - min)) * yl
 
-getValuePoints :: ChartCanvas -> YValueData -> XValueData -> [(Day, Double)] -> [ChartPoint]
-getValuePoints cv yv xv dds = uncurry ChartPoint <$> zip dayPoints valuePoints
+getValuePoints :: ChartCanvas
+               -> Maybe YValueData
+               -> Maybe XValueData
+               -> [(Day, Double)]
+               -> Maybe [ChartPoint]
+getValuePoints _  Nothing   _         _   = Nothing
+getValuePoints _  _         Nothing   _   = Nothing
+getValuePoints _  _         _         []  = Nothing
+getValuePoints cv (Just yv) (Just xv) dds = Just $ uncurry ChartPoint <$> zip dayPoints valuePoints
   where days = fst <$> dds
         values = snd <$> dds
         dayPoints = getXValuePoint cv xv . fst <$> zip [0..] days
@@ -105,15 +125,20 @@ data LevelItem = LevelItem {
   , levelItemColor      :: TL.Text
   } deriving (Eq, Show, Generic, ToJSON)
 
-getStandardLevels :: ChartCanvas -> YValueData -> HealthStandard -> [LevelItem]
-getStandardLevels cv yv@(YValueData yMin yMax) std = rangeToTemplate <$> levels
+getChartIndicatorLevels :: Bool
+                        -> Double
+                        -> ChartCanvas
+                        -> Maybe YValueData
+                        -> HealthIndicator
+                        -> [LevelItem]
+getChartIndicatorLevels _      _   _  Nothing                          _   = []
+getChartIndicatorLevels gender age cv (Just yv@(YValueData yMin yMax)) std = rangeToTemplate <$> overlappedRanges
   where
         valueRange = yMin +=+ yMax
-        stdLevels = getStdLevels std
-        stdLevelRanges = getStdRanges std
+        stdLevels = getIndicatorLevels gender age std
+        stdLevelRanges = getIndicatorRanges gender age std
         overlappedRanges = filter (rangesOverlap valueRange . getLvRange) stdLevels
         getYValuePoint' = getYValuePoint cv yv
-        levels = getStdLevels std
         rangeToTemplate :: Level -> LevelItem
         rangeToTemplate lv = case getLvRange lv of
           SpanRange (Bound y _) (Bound y2 _) -> LevelItem {
@@ -162,3 +187,29 @@ data ChartWithValue = ChartWithValue {
   , chartVValueLine :: TL.Text
   , chartVLevels :: [LevelItem]
   } deriving (Eq, Show, Generic, ToJSON)
+
+generateChartWithValue :: ChartCanvas
+                       -> HealthIndicator
+                       -> Maybe (YValueData, [(Double, Double)])
+                       -> Maybe (XValueData, [(Day, Double)])
+                       -> Maybe [ChartPoint]
+                       -> [LevelItem]
+                       -> Maybe ChartWithValue
+generateChartWithValue _  _   Nothing         _               _         _  = Nothing
+generateChartWithValue _  _   _               Nothing         _         _  = Nothing
+generateChartWithValue _  _   _               _               Nothing   _  = Nothing
+generateChartWithValue _  _   (Just (_, []))  _               _         _  = Nothing
+generateChartWithValue _  _   _               (Just (_, []))  _         _  = Nothing
+generateChartWithValue _  _   _               _               (Just []) _  = Nothing
+generateChartWithValue cc idc (Just (_, yls)) (Just (_, xls)) (Just cs) ls = Just
+  ChartWithValue {
+      chartVTitle = getIndicatorTitle idc
+    , chartVAxisStart = canvasXStartPoint cc
+    , chartVXAxisEnd = canvasXEndPoint cc
+    , chartVYAxisEnd = canvasYEndPoint cc
+    , chartVXLabels = xls
+    , chartVYLabels = yls
+    , chartVValuePoints = cs
+    , chartVValueLine = getValueLine cs
+    , chartVLevels = ls
+  }

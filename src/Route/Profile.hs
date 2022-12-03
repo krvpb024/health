@@ -123,6 +123,7 @@ profileServerT = profileGetHandler
         profileGetHandler (Just account) = do
           pool <- asks getPool
           maybeProfile <- liftIO $ selectProfile pool account
+          currentTime <- liftIO getCurrentTime
           case maybeProfile of
             Left err -> do
               html <- TP.htmlHandler context "/empty.html"
@@ -135,7 +136,11 @@ profileServerT = profileGetHandler
                                           , ( "profileId", toJSON $ _profileId profile )
                                           , ( "profileGender", toJSON $ bool ("女" :: TL.Text) "男" $ _profileGender profile )
                                           , ( "profileBirthDate", toJSON $ _profileBirthDate profile )
+                                          , ( "profileAge", toJSON age )
                                           ]
+                    now = utctDay currentTime
+                    ageAndMonth = divMod (cdMonths $ diffGregorianDurationClip now (_profileBirthDate profile)) 12
+                    age = (fromInteger $ fst ageAndMonth :: Double) + ((fromInteger $ snd ageAndMonth :: Double) / 12)
 
         profileGetCreateFormHandler :: Maybe SignInAccount
                                     -> ReaderHandler ( Union '[ WithStatus 403 RawHtml
