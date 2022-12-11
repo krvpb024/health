@@ -122,9 +122,9 @@ profileServerT = profileGetHandler
         profileGetHandler Nothing = respond =<< liftIO authFailToSignInView
         profileGetHandler (Just account) = do
           pool <- asks getPool
-          maybeProfile <- liftIO $ selectProfile pool account
+          eitherProfile <- liftIO $ selectProfile pool account
           currentTime <- liftIO getCurrentTime
-          case maybeProfile of
+          case eitherProfile of
             Left err -> do
               html <- TP.htmlHandler context "/empty.html"
               respond $ WithStatus @404 html
