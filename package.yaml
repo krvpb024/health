@@ -52,6 +52,9 @@ dependencies:
   - transformers
   - split
   - range
+  - cassava
+  - servant-multipart
+  - vector
 
 library:
   source-dirs: src

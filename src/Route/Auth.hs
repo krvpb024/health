@@ -39,6 +39,7 @@ import Utils.AuthHandler
 import Utils.TemplateHandler as TP
 import Data.HashMap.Strict as HS
 import Text.Ginger
+import Utils.ResponseType
 
 type AuthAPI = "auth" :> ("sign_up" :> ( Get '[HTML] RawHtml
                                     :<|> ReqBody '[FormUrlEncoded] AccountData :> PostRedirect 303 RedirectUrl

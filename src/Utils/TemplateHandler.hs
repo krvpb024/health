@@ -13,11 +13,11 @@ import Data.ByteString.Lazy as BL
 import Data.Text.Lazy.Encoding as TLE
 import Data.Text.Lazy as TL
 import System.Directory
-import Servant
 import Network.HTTP.Media ((//), (/:))
 import Control.Monad.IO.Class
 import Control.Exception
 import Data.Aeson
+import Utils.ResponseType
 
 scopeLookup :: (Hashable k, Eq k, ToGVal m b) => k
                                               -> HS.HashMap k b
@@ -44,16 +44,6 @@ render template contextMap =
 
   where contextLookup = flip scopeLookup contextMap
         context = makeContextHtml contextLookup
-
-data HTML = HTML
-
-newtype RawHtml = RawHtml { unRaw :: BL.ByteString }
-
-instance Accept HTML where
-  contentType _ = "text" // "html" /: ("charset", "utf-8")
-
-instance MimeRender HTML RawHtml where
-  mimeRender _ = unRaw
 
 htmlHandler :: MonadIO m => HS.HashMap VarName Value
                          -> String

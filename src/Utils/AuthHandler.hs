@@ -28,7 +28,7 @@ import Data.Time
 import Data.Aeson
 import qualified Utils.TemplateHandler as TP
 import qualified Data.HashMap.Strict as HS
-import Utils.TemplateHandler
+import Utils.ResponseType
 
 type instance AuthServerData (AuthProtect "cookie-auth") = Maybe SignInAccount
 

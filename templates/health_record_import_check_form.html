@@ -1,0 +1,53 @@
+{% extends "layout.html" %}
+
+{%- block title %}確認匯入資料{% endblock %}
+
+{%- block head %}
+{% endblock %}
+
+{%- block content %}
+<main>
+  <h1>確認匯入資料</h1>
+
+  <section>
+    <h2>確認匯入資料表</h2>
+
+    <form action="/health_record/import/check" method="post">
+      <h3>編輯匯入的記錄</h3>
+
+      <table>
+        <caption>由 CSV 檔匯入的記錄</caption>
+
+        <thead>
+          <tr>
+            <th scope="col">是否匯入</th>
+            <th scope="col">身高（cm）</th>
+            <th scope="col">體重（kg）</th>
+            <th scope="col">體脂率（%）</th>
+            <th scope="col">腰圍（cm）</th>
+            <th scope="col">日期</th>
+          </tr>
+        </thead>
+        <tbody>
+          {%- for r in importedHealthRecords -%}
+          <tr>
+            <td>
+              <input type="checkbox" name="importedRecords" value="{{ r[1] }}">
+            </td>
+            <td>{{ r[0].postHeight }}</td>
+            <td>{{ r[0].postWeight }}</td>
+            <td>{{ r[0].postBodyFatPercentage }}</td>
+            <td>{{ r[0].postWaistlineCm }}</td>
+            <td>{{ r[0].postDate }}</td>
+          </tr>
+          {%- endfor -%}
+        </tbody>
+      </table>
+      <button type="submit">送出</button>
+    </form>
+  </section>
+</main>
+{% endblock %}
+
+{%- block script %}
+{% endblock %}

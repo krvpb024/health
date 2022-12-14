@@ -36,6 +36,7 @@ library
       Utils.ChartType
       Utils.IndicatorType
       Utils.ReaderHandler
+      Utils.ResponseType
       Utils.TemplateHandler
   other-modules:
       Paths_health
@@ -47,6 +48,7 @@ library
     , beam-core
     , beam-postgres
     , bytestring
+    , cassava
     , clientsession
     , cookie
     , directory
@@ -64,6 +66,7 @@ library
     , range
     , resource-pool
     , servant
+    , servant-multipart
     , servant-server
     , split
     , text
@@ -71,6 +74,7 @@ library
     , transformers
     , unordered-containers
     , utf8-string
+    , vector
     , wai
     , wai-session
     , warp
@@ -89,6 +93,7 @@ executable health-exe
     , beam-core
     , beam-postgres
     , bytestring
+    , cassava
     , clientsession
     , cookie
     , directory
@@ -107,6 +112,7 @@ executable health-exe
     , range
     , resource-pool
     , servant
+    , servant-multipart
     , servant-server
     , split
     , text
@@ -114,6 +120,7 @@ executable health-exe
     , transformers
     , unordered-containers
     , utf8-string
+    , vector
     , wai
     , wai-session
     , warp
@@ -133,6 +140,7 @@ test-suite health-test
     , beam-core
     , beam-postgres
     , bytestring
+    , cassava
     , clientsession
     , cookie
     , directory
@@ -154,6 +162,7 @@ test-suite health-test
     , range
     , resource-pool
     , servant
+    , servant-multipart
     , servant-server
     , split
     , text
@@ -161,6 +170,7 @@ test-suite health-test
     , transformers
     , unordered-containers
     , utf8-string
+    , vector
     , wai
     , wai-session
     , warp

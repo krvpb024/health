@@ -40,6 +40,7 @@ import qualified Data.Text.Lazy.Encoding as TLE
 import Data.Either.Combinators
 import Control.Exception
 import qualified Data.Text as T
+import Utils.ResponseType
 
 type ProfileAPI =  "profile" :> ( AuthProtect "cookie-auth"
                                     :> UVerb 'GET '[HTML] [ WithStatus 403 RawHtml

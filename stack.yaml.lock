@@ -130,6 +130,20 @@ packages:
       size: 1014
   original:
     hackage: range-0.3.0.2
+- completed:
+    hackage: cassava-0.5.3.0@sha256:06e6dbc0f3467f3d9823321171adc08d6edc639491cadb0ad33b2dca1e530d29,6083
+    pantry-tree:
+      sha256: f019c04fa24b9cf13ee313047a8d510f04422cebc434867e14322abc18aff112
+      size: 1551
+  original:
+    hackage: cassava-0.5.3.0
+- completed:
+    hackage: servant-multipart-0.12.1@sha256:b482509b17371e56ef16179388f8221deffdf87fe32915bf3abb5eff4ce36bf2,2028
+    pantry-tree:
+      sha256: bb9f0808f90cf98cc23b169b3a99ea95548f958d2e773987351c4c9974323028
+      size: 332
+  original:
+    hackage: servant-multipart-0.12.1
 snapshots:
 - completed:
     sha256: a27a5761890ade44d7dd21a5f5f93c87e60b9c063655fff835d69dd1071474f0

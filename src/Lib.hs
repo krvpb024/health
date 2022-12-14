@@ -17,6 +17,7 @@ import Utils.TemplateHandler as TP
 import Utils.AuthHandler
 import Route.Profile
 import Route.HealthRecord
+import Utils.ResponseType
 
 type BaseAPI = Get '[HTML] RawHtml
 

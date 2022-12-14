@@ -1,0 +1,27 @@
+{% extends "layout.html" %}
+
+{%- block title %}匯入記錄 CVS{% endblock %}
+
+{%- block head %}
+{% endblock %}
+
+{%- block content %}
+<main>
+  <h1>匯入記錄 CVS</h1>
+
+  <section aria-labelledby="import-section-title">
+    <h2 id="import-section-title">匯入表格</h2>
+
+    <form action="/health_record/import" method="post" enctype="multipart/form-data"
+      aria-labelledby="import-section-title">
+      <label for="csv-file-input">CSV 檔</label>
+      <input type="file" name="healthRecordCsv" id="csv-file-input" required accept="text/csv">
+
+      <button type="submit">送出</button>
+    </form>
+  </section>
+</main>
+{% endblock %}
+
+{%- block script %}
+{% endblock %}
